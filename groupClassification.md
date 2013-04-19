@@ -128,7 +128,7 @@ library(e1071);  # R interface to libsvm (only needs calling once per R session)
 
 rm(list=ls());
 
-where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
 if (where.run == "Alan") {
   #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
@@ -271,5 +271,172 @@ tbl <- read.table(paste(path, "l1subOut_", ROI, "_", pair, "_RowSc.txt", sep="")
 lines(x=OFFSETS, y=tbl$avg.acc, col='black');
 
 ##################################################################################################################################################
+##################################################################################################################################################
+# leave-one-person-out cross-validation: permutation version
+# we have 16 people, and leave-one-subject-out cross-validation. So we can use the 16eachTable.txt we calculated for the within-subjects
+# permutation testing for this testing. 
+# Much of the code is exactly the same as when we're not doing the permutation test. The permutation part is just during the classification: put
+# on new labels, do the classification, put on the next set of labels and classify again, etc.
+
+library(e1071);  # R interface to libsvm (only needs calling once per R session)
+
+rm(list=ls());
+
+where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+
+if (where.run == "Alan") {
+  #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
+  inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/";
+  outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
+  perm.path <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
+}
+if (where.run == "Jo") {
+  inpath <- "d:/temp/";
+  outpath <- "d:/temp/"; 
+  perm.path <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";  # location of 16eachTable.txt
+}
+ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
+#SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
+SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
+OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
+perm.lbls <- read.table(paste(perm.path, "16eachTable.txt", sep=""));  #  1000 relabelings plus the true one (first row)
+
+# the things to classify. will classify the first entry of PAIR1S with the first entry of PAIR2S, etc.
+#PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
+#PAIR2S <- c("upgreenINCOR","upemptyINCOR","upredINCOR");  
+PAIR1S <- c("upgreen","upred","upred");  
+PAIR2S <- c("upempty","upempty","upgreen");  
 
 
+# flags for type of scaling to do.
+DO_ROW_SCALING <- FALSE;
+DO_DEFAULT_SCALING <- FALSE;
+
+doSVM <- function(train, test) {  # test <- test.set; train <- train.set;
+  test <- subset(test, select=c(-subID, -offset));  # get rid of non-classify or voxel columns
+  train <- subset(train, select=c(-subID, -offset));
+  if (colnames(test)[2] != "v1" | colnames(train)[2] != "v1") { stop("v1 not found where expected"); }
+  
+  fit <- svm(expType~., data=train, type="C-classification", kernel="linear", cost=1, scale=DO_DEFAULT_SCALING);  
+  tree <- table(test$expType, predict(fit, test));
+  if (dim(tree)[2]==1 | dim(tree)[1]==1) { wrT <- 0.5; } else { wrT <- sum(diag(tree))/sum(tree); }
+  
+  return(wrT);
+}
+
+SCALING_LABEL <- "_";  # make a label for the output files showing the type of scaling used for this classification
+if (DO_ROW_SCALING == TRUE) { SCALING_LABEL <- paste(SCALING_LABEL, "RowSc", sep=""); }
+if (DO_DEFAULT_SCALING == TRUE) { SCALING_LABEL <- paste(SCALING_LABEL, "DefaultSc", sep=""); }
+
+if (length(PAIR1S) != length(PAIR2S)) { stop("length(PAIR1S) != length(PAIR2S)"); }
+for (ROI in ROIS) {     # ROI <- ROIS[1]; 
+  for (p in 1:length(PAIR1S)) {   # p <- 1; ROI <- ROIS[1]; 
+    # make a dataframe with all the data we need to classify this pair of stimuli
+    if (PAIR1S[p] == PAIR2S[p]) { stop("PAIR1 == PAIR2"); }
+    tbl <- read.table(gzfile(paste(inpath, ROI, "_", PAIR1S[p], "_avg_allSubs.txt.gz", sep="")));
+    tbl <- data.frame(PAIR1S[p], tbl);   # add the trial type label - not in the average file, just its filename
+    colnames(tbl)[1] <- "expType";   # fix the new column's title
+    
+    temp.tbl <- read.table(gzfile(paste(inpath, ROI, "_", PAIR2S[p], "_avg_allSubs.txt.gz", sep="")));
+    temp.tbl <- data.frame(PAIR2S[p], temp.tbl);   # add the trial type label - not in the average file, just its filename
+    colnames(temp.tbl)[1] <- "expType";   # fix the new column's title
+    if (nrow(tbl) != nrow(temp.tbl) | ncol(tbl) != ncol(temp.tbl)) { stop("tbl and temp.tbl different sizes"); }
+    
+    tbl <- rbind(tbl, temp.tbl);  # put both into one dataframe
+    rm(temp.tbl);  # take the temporary table out of memory
+    if (length(summary(tbl$expType)) != 2) { stop("not two expType in tbl"); }
+    if (summary(tbl$expType)[[1]] != summary(tbl$expType)[[2]]) { stop("number of examples not balanced"); }
+    if (length(unique(tbl$subID)) != length(SUBS)) { stop("number of subjects don't match in tbl$subID and SUBS"); }
+
+    if (DO_ROW_SCALING == TRUE) {  # do row scaling (all voxels in each volume)
+      scaled <- tbl[,4:nrow(tbl)];   # get voxel columns; cols 1 to 4 are labels
+      scaled <- scale(t(scaled));  # scale does columns, so transpose
+      tbl <- data.frame(tbl[,1:3], t(scaled));  # put label columns back on, transpose back
+      rm(scaled);
+    }   
+    
+    # do the leave-one-subject-out cross-validation
+    rtbl <- data.frame(array(NA, c(length(OFFSETS)*nrow(perm.lbls), length(SUBS)+4)));   # results table (will be written out)
+    colnames(rtbl) <- c("perm.num", "offset", "pair", paste(SUBS, "out", sep=""), "avg.acc");
+    ctr <- 1;  # row counter for rtbl
+    for (o in 1:length(OFFSETS)) {   # o <- 1; 
+      rtbl[ctr,2] <- OFFSETS[o];
+      rtbl[ctr,3] <- paste(PAIR1S[p], PAIR2S[p], sep="_");
+      o.tbl <- subset(tbl, offset == OFFSETS[o]);  # all the data for one offset: where we need to put the new labels.
+      # check o.tbl: the rows should already be sorted by expType, and the number of rows should match the number of new labels in perm.lbls
+      if (nrow(o.tbl) != ncol(perm.lbls)) { stop("nrow(o.tbl) != ncol(perm.lbls)"); }
+      if (length(unique(o.tbl$expType[1:length(SUBS)])) != 1) { stop("length(unique(o.tbl$expType[1:length(SUBS)])) != 1"); }
+      
+      # put on the labels and classify this permutation.
+      for (perm.num in 1:nrow(perm.lbls)) {    # perm.num <- 1;
+        rtbl[ctr,1] <- perm.num - 1;   # perm.num - 1 so the true labeling gets called 0 in the results file (my convention)
+        o.tbl$expType <- as.factor(t(perm.lbls[perm.num,]));  # now a and b instead of the real labels, but it doesn't matter.
+        for (sn in 1:length(SUBS)) {     # sn <- 1;
+          train.set <- subset(o.tbl, subID != SUBS[sn]);  # everyone but the testing subject
+          test.set <- subset(o.tbl, subID == SUBS[sn]);  # just the testing subject
+          # double-check the training and testing data a bit
+          if (summary(train.set$expType)[[1]] != summary(train.set$expType)[[2]]) { stop("training data not balanced"); }  
+          if (summary(test.set$expType)[[1]] != summary(test.set$expType)[[2]]) { stop("testing data not balanced"); }  
+          if (nrow(train.set) != (length(SUBS)-1)*2) { stop("not the right number of rows in the training data"); }
+          if (nrow(test.set) != 2) { stop("not two rows in the testing data"); }
+          
+          rtbl[ctr,sn+3] <- doSVM(train.set, test.set);    # actually classify!
+        }
+        rtbl[ctr,ncol(rtbl)] <- mean(as.vector(rtbl[o,4:(length(SUBS)+3)], mode="numeric"));   # average accuracy
+      }
+    }
+    if (SCALING_LABEL == "_") { SCALING_LABEL <- "_noScaling"; }
+    rownames(rtbl) <- 1:dim(rtbl)[1];
+    write.table(rtbl, gzfile(paste(outpath, "l1subOut_", ROI, "_", PAIR1S[p], "_", PAIR2S[p], SCALING_LABEL, "_perms.txt.gz", sep="")));
+  }
+}
+
+##################################################################################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
