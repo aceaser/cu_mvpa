@@ -282,7 +282,7 @@ library(e1071);  # R interface to libsvm (only needs calling once per R session)
 
 rm(list=ls());
 
-where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
 if (where.run == "Alan") {
   #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
@@ -296,21 +296,21 @@ if (where.run == "Jo") {
   perm.path <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";  # location of 16eachTable.txt
 }
 ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
-#SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
-SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
+SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
+#SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
 OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
-perm.lbls <- read.table(paste(perm.path, "16eachTable.txt", sep=""));  #  1000 relabelings plus the true one (first row)
+perm.lbls <- read.table(paste(perm.path, "13eachTable.txt", sep=""));  #  1000 relabelings plus the true one (first row)
 
 # the things to classify. will classify the first entry of PAIR1S with the first entry of PAIR2S, etc.
-#PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
-#PAIR2S <- c("upgreenINCOR","upemptyINCOR","upredINCOR");  
-PAIR1S <- c("upgreen","upred","upred");  
-PAIR2S <- c("upempty","upempty","upgreen");  
+PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
+PAIR2S <- c("upgreenINCOR","upemptyINCOR","upredINCOR");  
+#PAIR1S <- c("upgreen","upred","upred");  
+#PAIR2S <- c("upempty","upempty","upgreen");  
 
 
 # flags for type of scaling to do.
 DO_ROW_SCALING <- FALSE;
-DO_DEFAULT_SCALING <- FALSE;
+DO_DEFAULT_SCALING <- TRUE;
 
 doSVM <- function(train, test) {  # test <- test.set; train <- train.set;
   test <- subset(test, select=c(-subID, -offset));  # get rid of non-classify or voxel columns
