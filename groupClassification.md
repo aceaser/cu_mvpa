@@ -128,7 +128,7 @@ library(e1071);  # R interface to libsvm (only needs calling once per R session)
 
 rm(list=ls());
 
-where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
 if (where.run == "Alan") {
   #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
@@ -140,20 +140,20 @@ if (where.run == "Jo") {
   outpath <- "d:/temp/"; 
 }
 ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
-#SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
-SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
+SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
+#SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
 OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
 
 # the things to classify. will classify the first entry of PAIR1S with the first entry of PAIR2S, etc.
-#PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
-#PAIR2S <- c("upgreenINCOR","upemptyINCOR","upredINCOR");  
-PAIR1S <- c("upgreen","upred","upred");  
-PAIR2S <- c("upempty","upempty","upgreen");  
+PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
+PAIR2S <- c("upgreenINCOR","upemptyINCOR","upredINCOR");  
+#PAIR1S <- c("upgreen","upred","upred");  
+#PAIR2S <- c("upempty","upempty","upgreen");  
 
 
 # flags for type of scaling to do.
 DO_ROW_SCALING <- FALSE;
-DO_DEFAULT_SCALING <- FALSE;
+DO_DEFAULT_SCALING <- TRUE;
 
 doSVM <- function(train, test) {  # test <- test.set; train <- train.set;
   test <- subset(test, select=c(-subID, -offset));  # get rid of non-classify or voxel columns
@@ -219,7 +219,7 @@ for (ROI in ROIS) {     # ROI <- ROIS[1];
     }
     if (SCALING_LABEL == "_") { SCALING_LABEL <- "_noScaling"; }
     rownames(rtbl) <- 1:dim(rtbl)[1];
-    write.table(rtbl, paste(outpath, "l1subOut_", ROI, "_", PAIR1S[p], "_", PAIR2S[p], SCALING_LABEL, ".txt", sep=""));    
+    write.table(rtbl, paste(outpath, "l1subOut2_", ROI, "_", PAIR1S[p], "_", PAIR2S[p], SCALING_LABEL, ".txt", sep=""));    
   }
 }
 
@@ -284,6 +284,9 @@ rm(list=ls());
 
 where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
+get o from the cluster-starting-file parameters
+
+
 if (where.run == "Alan") {
   #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
   inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/";
@@ -299,7 +302,7 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
 SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="")
 #SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
 OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
-perm.lbls <- read.table(paste(perm.path, "13eachTable.txt", sep=""));  #  1000 relabelings plus the true one (first row)
+perm.lbls <- read.table(paste(perm.path, "l1outPermlbls.txt", sep=""));  #  1000 relabelings plus the true one (first row)
 
 # the things to classify. will classify the first entry of PAIR1S with the first entry of PAIR2S, etc.
 PAIR1S <- c("upgreenCOR","upemptyCOR","upredCOR");  
@@ -356,12 +359,10 @@ for (ROI in ROIS) {     # ROI <- ROIS[1];
     }   
     
     # do the leave-one-subject-out cross-validation
-    rtbl <- data.frame(array(NA, c(length(OFFSETS)*nrow(perm.lbls), length(SUBS)+4)));   # results table (will be written out)
-    colnames(rtbl) <- c("perm.num", "offset", "pair", paste(SUBS, "out", sep=""), "avg.acc");
-    ctr <- 1;  # row counter for rtbl
-    for (o in 1:length(OFFSETS)) {   # o <- 1; 
-      rtbl[ctr,2] <- OFFSETS[o];
-      rtbl[ctr,3] <- paste(PAIR1S[p], PAIR2S[p], sep="_");
+  #  for (o in 1:length(OFFSETS)) {   # o <- 1; 
+      rtbl <- data.frame(array(NA, c(nrow(perm.lbls), length(SUBS)+4)));   # results table (will be written out)
+      colnames(rtbl) <- c("perm.num", "offset", "pair", paste(SUBS, "out", sep=""), "avg.acc");
+      ctr <- 1;  # row counter for rtbl
       o.tbl <- subset(tbl, offset == OFFSETS[o]);  # all the data for one offset: where we need to put the new labels.
       # check o.tbl: the rows should already be sorted by expType, and the number of rows should match the number of new labels in perm.lbls
       if (nrow(o.tbl) != ncol(perm.lbls)) { stop("nrow(o.tbl) != ncol(perm.lbls)"); }
@@ -369,6 +370,8 @@ for (ROI in ROIS) {     # ROI <- ROIS[1];
       
       # put on the labels and classify this permutation.
       for (perm.num in 1:nrow(perm.lbls)) {    # perm.num <- 1;
+        rtbl[ctr,2] <- OFFSETS[o];
+        rtbl[ctr,3] <- paste(PAIR1S[p], PAIR2S[p], sep="_");
         rtbl[ctr,1] <- perm.num - 1;   # perm.num - 1 so the true labeling gets called 0 in the results file (my convention)
         o.tbl$expType <- as.factor(t(perm.lbls[perm.num,]));  # now a and b instead of the real labels, but it doesn't matter.
         for (sn in 1:length(SUBS)) {     # sn <- 1;
@@ -382,14 +385,15 @@ for (ROI in ROIS) {     # ROI <- ROIS[1];
           
           rtbl[ctr,sn+3] <- doSVM(train.set, test.set);    # actually classify!
         }
-        rtbl[ctr,ncol(rtbl)] <- mean(as.vector(rtbl[o,4:(length(SUBS)+3)], mode="numeric"));   # average accuracy
+        rtbl[ctr,ncol(rtbl)] <- mean(as.vector(rtbl[ctr,4:(length(SUBS)+3)], mode="numeric"));   # average accuracy
+        ctr <- ctr + 1;
       }
+      if (SCALING_LABEL == "_") { SCALING_LABEL <- "_noScaling"; }
+      rownames(rtbl) <- 1:dim(rtbl)[1];
+      write.table(rtbl, gzfile(paste(outpath, "l1subOut_", OFFSETS[o], "_", ROI, "_", PAIR1S[p], "_", PAIR2S[p], SCALING_LABEL, "_perms.txt.gz", sep="")));
     }
-    if (SCALING_LABEL == "_") { SCALING_LABEL <- "_noScaling"; }
-    rownames(rtbl) <- 1:dim(rtbl)[1];
-    write.table(rtbl, gzfile(paste(outpath, "l1subOut_", ROI, "_", PAIR1S[p], "_", PAIR2S[p], SCALING_LABEL, "_perms.txt.gz", sep="")));
   }
-}
+#}
 
 ##################################################################################################################################################
 
