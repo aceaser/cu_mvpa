@@ -282,10 +282,16 @@ library(e1071);  # R interface to libsvm (only needs calling once per R session)
 
 rm(list=ls());
 
-where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+where.run <- "cluster";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
-get o from the cluster-starting-file parameters
-
+if (where.run == "cluster") {
+   inpath <- "/home/aceaser/AccPerm/jobs/";
+   outpath <- "/home/aceaser/AccPerm/"; 
+   permpath <- "/home/aceaser/AccPerm/";   # location of l1outPermlbls.txt
+    
+   cA <- commandArgs();   #get whatever number was sent in job file
+   o  <- as.numeric(cA[5]);  # which timepoints to run 
+}
 
 if (where.run == "Alan") {
   #inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
