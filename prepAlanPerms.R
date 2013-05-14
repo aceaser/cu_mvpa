@@ -264,6 +264,69 @@ for (p in 1:num.perms) {  # p <- 1;
 
 write.table(out.lbls, paste("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/l1outPermlbls.txt", sep=""));
 
+##################################################################################################################################################
+##################################################################################################################################################
+# permutation labels for the leave-one-subject-out analyses. 13 subjects, two examples per person (one of each class). Flip the labels pairwise
+# sub1 flipped, sub 1 & 3, etc. to keep balance. True labeling is sub1-class1 sub2-class1 ... sub1-class2 sub2class2 ...
+# COMPLETE set of permutations
+
+# how many possible?   choose(13,1) + choose(13,2) + choose(13,3) + choose(13,4) + choose(13,5) + choose(13,6) + choose(13,7) + choose(13,8) + choose(13,9) +
+# choose(13,10) + choose(13,11) + choose(13,12)   # 8190
+
+library(gtools)
+rm(list=ls());
+
+num.subs <- 13;
+all.perms <- array(NA, c(8191, num.subs*2));  # 13 subjects * 2 classes
+all.perms[1,] <- c(rep("a", num.subs), rep("b", num.subs));  # true labeling first
+ctr <- 2;
+
+# flip 1
+tmp <- combinations(num.subs, 1, 1:num.subs);  # which people to flip
+for (i in 1:nrow(tmp)) {   # i <- 1;
+  flip <- tmp[i]
+  a.s <- rep("a", num.subs)
+  a.s[flip] <- "b";
+  b.s <- rep("b", num.subs)
+  b.s[flip] <- "a";
+  all.perms[ctr,] <- c(a.s, b.s)
+  ctr <- ctr + 1;
+}
+
+# flip 2 to 11
+for (nf in 2:11) {  # nf <- 11;
+  tmp <- combinations(num.subs, nf, 1:num.subs);  # which people to flip
+  for (i in 1:nrow(tmp)) {   # i <- 1;
+    flip <- tmp[i,]
+    a.s <- rep("a", num.subs)
+    a.s[flip] <- "b";
+    b.s <- rep("b", num.subs)
+    b.s[flip] <- "a";
+    all.perms[ctr,] <- c(a.s, b.s)
+    ctr <- ctr + 1;
+  }
+}
+
+# flip 12
+tmp <- combinations(num.subs, 12, 1:num.subs);  # which people to flip
+for (i in 1:nrow(tmp)) {   # i <- 1;
+  flip <- tmp[i,]
+  a.s <- rep("a", num.subs)
+  a.s[flip] <- "b";
+  b.s <- rep("b", num.subs)
+  b.s[flip] <- "a";
+  all.perms[ctr,] <- c(a.s, b.s)
+  ctr <- ctr + 1;
+}
+
+write.table(all.perms, paste("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/l1outPermlbls_complete.txt", sep=""));
+
+# double-check for repeats (shouldn't be any!)
+for (i in 1:(nrow(all.perms)-1)) { 
+  for (j in (i+1):nrow(all.perms)) {   # i <- 1; j <- 2;
+    if (length(which(all.perms[i,] == all.perms[j,])) == 26) { stop("found a match!!!"); } 
+  }
+}
 
 ##################################################################################################################################################
 
