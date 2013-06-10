@@ -1,6 +1,7 @@
 make an error   # do not source this file
 ##################################################################################################################################################################
-# Read and convert the event/onset log files. These files are in .fidl format.
+# Read and convert the event/onset log files. These files are in .fidl format. Offset 0 occurs at the onset of the update cue. No time shift
+# was done to account for lag. For half tr's the script rounds up for .5n and randomly rounds up or down for .5 even.
 ##################################################################################################################################################################
 
 rm(list=ls())
