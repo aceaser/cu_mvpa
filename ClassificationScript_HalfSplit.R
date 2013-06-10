@@ -183,7 +183,11 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
 
 #for (ROI in ROIS) {    # To do just one roi select that and use this instead of loop ROI <- ROIS[1];
    intbl <- read.table(gzfile(paste(inpath, "allData_", ROI, ".gz", sep="")), comment.char="", header=TRUE);
+<<<<<<< HEAD
 	# intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
+=======
+  # intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
+>>>>>>> cb7aff6f45a9705a73849e254f8915362362c947
    
     FIRSTVOXEL <- which(colnames(intbl) == "v1");  # index at which "clean" voxels should start; column number of the v1 column in the input files.
     NUMVOXELS <- dim(intbl)[2] - FIRSTVOXEL + 1;  # the number of voxels in the ROI
