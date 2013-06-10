@@ -8,9 +8,11 @@ rm(list=ls())
 inpath <- "C:/maile/svnFiles/plein/consulting/Alan/";
 outpath <- inpath;
 
-SUB <- 1003;   # just for Jo; put SUB into a loop
+SUBS <- c(1003:1009,1011:1019)
+#SUBS <- 1003;   # just for Jo; put SUB into a loop
 
-tbl <- read.delim(paste(inpath, SUB, "errTrltype.fidl", sep="")); 
+for (SUB in SUBS) {    
+  tbl <- read.delim(paste(inpath, SUB, "errTrltype.fidl", sep="")); 
 #           X2 delayempty memset delay1 smain smainnp rmain rmainup rmainnp update updateop updatenp delaygreen delayred probe delayemptyERR memsetERR delay1ERR smainERR
 # 1      3.206          1      3     NA    NA      NA    NA      NA      NA     NA       NA       NA         NA       NA    NA            NA        NA        NA       NA
 # 2      6.311          2      7     NA    NA      NA    NA      NA      NA     NA       NA       NA         NA       NA    NA            NA        NA        NA       NA
@@ -65,7 +67,7 @@ timeInMsec <- (alllbls$TRnumber * 2000) - 3000;  # 10 June 2013, Jo note: I don'
 alllbls <- data.frame(alllbls, timeInMsec)
 
 write.table(alllbls, paste(outpath, SUB, "_rewrittenLog.txt", sep=""));
-
+}
 ####################################################################################################################################################################
 # prepare the functional images for MVPA
 # convert all of the images from nifti to arrays (just numbers). this converts all of the files in specific directories.
