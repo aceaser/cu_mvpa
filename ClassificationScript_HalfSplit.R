@@ -195,8 +195,8 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
     NUMVOLUMES <- max(summary(intbl$subID));  # number of volumes in each run; should be 210
     inds <- array(NA, c(length(SUBS), NUMVOLUMES));
     for (s in 1:length(SUBS)) {     # here we store the rows where each subjects' data is located         
-	tmp <- which(intbl$subID == paste("sub", SUBS[s], sep=""));
-	if (length(tmp) < 1) { stop(paste("no rows for sub", SUBS[s], "in intbl")); }
+  tmp <- which(intbl$subID == paste("sub", SUBS[s], sep=""));
+  if (length(tmp) < 1) { stop(paste("no rows for sub", SUBS[s], "in intbl")); }
         inds[s,1:length(tmp)] <- tmp; 
     }
     
@@ -228,6 +228,7 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
 }
 ##################################################################################################################################################
 # perform mean-subtraction. also add on the eventType column from the log files and save one file per person and ROI.
+# these are the files used in the half-split (within each person individually) classification.
 ##################################################################################################################################################
 
 rm(list=ls());
@@ -276,11 +277,11 @@ NUMVOLUMES <- 210;  # 210 volumes for everyone in each run (no missing volumes, 
         if (dim(ltbl)[1] != dim(outtbl)[1]) { stop("row counts for ltbl and outtbl don't match"); }
 
         inds_match <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-	if (length(inds_match) != dim(outtbl)[1]) {  # not all match, so fix the row order to match ltbl
-		outtbl <- outtbl[order(outtbl$run, outtbl$TR),]; # check help for order
-        	inds_match2 <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-		if (length(inds_match2) != dim(outtbl)[1]) { stop("inds_match2 don't!"); }
-	}
+        if (length(inds_match) != dim(outtbl)[1]) {  # not all match, so fix the row order to match ltbl
+          outtbl <- outtbl[order(outtbl$run, outtbl$TR),]; # check help for order
+          inds_match2 <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
+          if (length(inds_match2) != dim(outtbl)[1]) { stop("inds_match2 don't!"); }
+        }
         outtbl <- data.frame(ltbl$eventType, outtbl);
         colnames(outtbl)[1] <- "eventType";  # fix the column name; don't want it it be ltbl$eventType
         outtbl$subID <- paste("sub", SUB, sep="");  # put back to the correct string; turned into a level in earlier steps
@@ -423,209 +424,8 @@ for (r in 1:length(ROIS)) {   #   r <- 1;
 
 ##################################################################################################################################################
 # Half-Split classification
-# Cannot handle subjects that don't have all runs
-# Outputs all subjects into one file per comparison per roi
-##################################################################################################################################################
-
-library(e1071);  # R interface to libsvm
-
-rm(list=ls());
-
-inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
-outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
-ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native","Parietal_mask_native");
-#ROIS <- c("Parietal_mask_native");
-#ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
-SUBS <- paste("sub", c(1005:1009,1011:1018), sep="");   
-#SUBS <- c(1003:1009, 1011:1019);
-#SUBS <- c(1005:1009, 1011:1019);
-# SUBS <- "sub1019";
-SEEDS <- c(51591, 36414, 56347, 38442, 20176, 51348, 89727, 67106, 23543, 52663);  # 10 random seeds, from sample(1:100000)[1:10]
-NUMSPLITS <- 10;
-
-#FIRSTVOXEL <- 4;   # column number of first voxel column (v1)
-#NUMVOLUMES <- 210;  # 210 volumes for everyone in each run (no missing volumes, just whole runs missing)
-
-PAIR1S <- c("upempty","upempty","upgreen");  # the things to classify. will classify the first entry of PAIR1S with the first entry of PAIR2S, etc.
-PAIR2S <- c("upgreen","upred","upred");  # each pair1 needs to be alphabetically before each corresponding pair2 for the balancing code to work.
-#PAIR1S <- "upempty"
-#PAIR2S <- "upgreen"
-
-# flags for type of scaling to do.
-DO_ROW_SCALING <- FALSE;
-DO_DEFAULT_SCALING <- TRUE;
-DO_COLUMN_SCALING <- FALSE;
-
-doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # test <- useTest; train <- useTrain;
-  test <- subset(test, select=c(-subID, -run, -TR));  # get rid of non-classify or voxel columns
-  train <- subset(train, select=c(-subID, -run, -TR));
-  if (colnames(test)[2] != "v1" | colnames(train)[2] != "v1") { stop("v1 not found where expected"); }
-  
-  fit <- svm(eventType~., data=train, type="C-classification", kernel="linear", cost=1, scale=DO_DEFAULT_SCALING);  
-  tree <- table(test$eventType, predict(fit, test));
-  if (dim(tree)[2]==1 | dim(tree)[1]==1) { wrT <- 0.5; } else { wrT <- sum(diag(tree))/sum(tree); }
-  
-  return(wrT);
-}
-
-
-#> tbl[1:5,1:7]
-#  eventType   subID run TR         v1          v2         v3
-#1       ITI sub1008   1  1  -8.387116 -10.2185471 -18.805070
-#2    memset sub1008   1  2 -11.601106  -2.8148606  -8.486344
-#3    delay1 sub1008   1  3  -8.180573  -0.7729905  -7.959977
-
-
-SCALING_LABEL <- "_";  # make a label for the output files showing the type of scaling used for this classification
-if (DO_COLUMN_SCALING == TRUE) { SCALING_LABEL <- paste(SCALING_LABEL, "ColSc", sep=""); }
-if (DO_ROW_SCALING == TRUE) { SCALING_LABEL <- paste(SCALING_LABEL, "RowSc", sep=""); }
-if (DO_DEFAULT_SCALING == TRUE) { SCALING_LABEL <- paste(SCALING_LABEL, "DefaultSc", sep=""); }
-
-STEPBY <- 4;  # one less than how many runs to include in each cross-validation fold.
-MAXTESTS <- 4;  # maximum number of cross-validation folds that will be done for a person; 12/3. can be larger, but not smaller, than actual number of folds.
-OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
-
-if (length(PAIR1S) != length(PAIR2S)) { stop("length(PAIR1S) != length(PAIR2S)"); }
-for (p in 1:length(PAIR1S)) {   # p <- 1;
-  PAIR1 <- PAIR1S[p];  # get what we're classifying this time. 
-  PAIR2 <- PAIR2S[p];
-  if (PAIR1 == PAIR2) { stop("PAIR1 == PAIR2"); }
-  for (ROI in ROIS) {     # ROI <- ROIS[1]; 
-    rtbl <- array(NA, c(length(SUBS) * length(OFFSETS) * NUMSPLITS, (MAXTESTS+2)));   # results table
-    subID <- rep(NA, length(SUBS) * length(OFFSETS) * NUMSPLITS);   # subject ID column of results table
-    rowctr <- 1;
-    for (SUB in SUBS) {     # SUB <- "sub1003";
-      # NOTE: to set different cross-validation schemes for different people, set STEPBY here (if (SUB == WHOEVER) { STEPBY <- 4; })
-      # but MAXTESTS needs to be set to the most cross-validation folds for everyone (or rtbl will be too small).
-      tbl <- read.table(gzfile(paste(inpath, SUB, "_", ROI, "_meanSub.gz", sep="")), comment.char=""); # read in the data
-      RUNS <- sort(unique(tbl$run));
-      if (length(RUNS) > 12) { stop("too many runs"); }   # try to catch if the input data is wrong
-      TRS <- unique(tbl$TR);
-      if (length(TRS) != 210) { stop("too many or few TRs"); }
-      FIRSTVOXEL <- which(colnames(tbl) == "v1");  # column number of the first voxel column; bigger columns are voxels.
-      # change some of the eventTypes so can classify
-      ind <- which(levels(tbl$eventType) == "smain"); levels(tbl$eventType)[ind] <- "upempty";
-      ind <- which(levels(tbl$eventType) == "smainnp"); levels(tbl$eventType)[ind] <- "upempty";
-      ind <- which(levels(tbl$eventType) == "delayempty"); levels(tbl$eventType)[ind] <- "upempty";
-      ind <- which(levels(tbl$eventType) == "rmain"); levels(tbl$eventType)[ind] <- "upred";
-      ind <- which(levels(tbl$eventType) == "rmainup"); levels(tbl$eventType)[ind] <- "upred";
-      ind <- which(levels(tbl$eventType) == "rmainnp"); levels(tbl$eventType)[ind] <- "upred";
-      ind <- which(levels(tbl$eventType) == "delayred"); levels(tbl$eventType)[ind] <- "upred";
-      ind <- which(levels(tbl$eventType) == "update"); levels(tbl$eventType)[ind] <- "upgreen";
-      ind <- which(levels(tbl$eventType) == "updateop"); levels(tbl$eventType)[ind] <- "upgreen";
-      ind <- which(levels(tbl$eventType) == "updatenp"); levels(tbl$eventType)[ind] <- "upgreen";
-      ind <- which(levels(tbl$eventType) == "delaygreen"); levels(tbl$eventType)[ind] <- "upgreen";
-      
-      if (DO_ROW_SCALING == TRUE) {  # do row scaling (all voxels in each volume)
-        scaled <- tbl[,FIRSTVOXEL:(dim(tbl)[2])];   # get voxel columns; cols 1 to LABELCOLS are labels
-        scaled <- scale(t(scaled));  # scale does columns, so transpose
-        tbl <- cbind(tbl[,1:(FIRSTVOXEL-1)], t(scaled));  # put label columns back on, transpose back
-        rm(scaled);
-      }    
-      
-      # find the start of each trial that's type pair1 or pair2
-      inds <- which(tbl$eventType == PAIR1 | tbl$eventType == PAIR2);
-      tinds <- c(1, (1 + which(diff(inds) > 2)));  # these are the rows that start a trial of the type we want
-      
-      for (OFFSET in OFFSETS) {    # OFFSET <- OFFSETS[1]
-        colctr <- 3;
-        useinds <- inds[tinds] + OFFSET;  # data to classify; offset from time point 0: start of each trial
-        #useinds <- useinds[which(useinds > 0)];  # don't want any negative rows
-        if (length(which(useinds < 0)) > 0) { stop("yes, have negative rows"); }
-        t0tbl <- tbl[useinds,];
-        if (OFFSET != 0) {  # need to get labels for which events these go with; offset labels are other things than what we're classifying.
-          uselbls <- tbl$eventType[inds[tinds]];     
-          if (length(uselbls) != dim(t0tbl)[1]) { stop("very wrong lengths for uselbls"); } else { t0tbl$eventType <- uselbls; }
-        }
-        
-        for (r in seq(from=1, to=length(RUNS), by=STEPBY)) {   # r <- 1;
-          testRuns <- RUNS[r];  # runs to go into test set for this cross-validation fold
-          for (stepby in 1:(STEPBY-1)) {  # fiddly since not all people have all runs: need to make sure doesn't try to include a run that isn't there.
-            if ((r+stepby) < length(RUNS)) { testRuns <- c(testRuns, RUNS[r+stepby]); } 
-          }
-          #if ((r+1) < length(RUNS)) { testRuns <- c(testRuns, RUNS[r+1]); }  # this is fiddly since not all people have all runs.
-          #if ((r+2) < length(RUNS)) { testRuns <- c(testRuns, RUNS[r+2]); }
-          testinds <- which(is.element(t0tbl$run, testRuns));  # rows with test-set runs
-          traininds <- (1:dim(t0tbl)[1])[-testinds];  # all the others are training-set runs
-          if (length(testinds) == 0) { stop("no testing data"); }  # can't be empty
-          if (length(traininds) == 0) { stop("no training data"); }
-          if (length(intersect(testinds, traininds)) > 0) { stop("overlap in test and traininds"); }
-          allTest <- t0tbl[testinds,];  # subset into training and testing sets
-          allTrain <- t0tbl[traininds,];
-          allTest$eventType <- factor(allTest$eventType);   # gets rid of empty factor levels (simplifies balancing)
-          allTrain$eventType <- factor(allTrain$eventType);
-          
-          for (splt in 1:NUMSPLITS) {    # splt <- 1;
-            set.seed(SEEDS[splt]);  # set random seed so splits are repeat-able
-            doSplits <- TRUE; # marker to recognize when the examples are balanced, so don't split when unnecessary.
-            
-            # balance number of pair1 and pair2 entries in the training and testing sets by omitting rows of bigger class
-            # check if classes are balanced in the training data, and balance if not
-            oneCount <- summary(allTrain$eventType)[[1]];
-            twoCount <- summary(allTrain$eventType)[[2]];
-            if (twoCount == oneCount) {   # balanced already.
-              useTrain <- allTrain;
-              doSplits <- FALSE;
-            } else {
-              if (oneCount > twoCount) {   # too many of PAIR1
-                rows <- sample(which(allTrain$eventType==PAIR1));
-                rows <- rows[1:(oneCount-twoCount)];
-                useTrain <- allTrain[-rows,];   # remove extra rows by index
-              } 
-              if (twoCount > oneCount) {  # too many of PAIR2
-                rows <- sample(which(allTrain$eventType==PAIR2));
-                rows <- rows[1:(twoCount-oneCount)];
-                useTrain <- allTrain[-rows,];
-              }    
-            }
-            if (summary(useTrain$eventType)[[1]] != summary(useTrain$eventType)[[2]]) { stop("training data not balanced"); }
-            if (summary(useTrain$eventType)[[1]] == 0) { stop("no training data after balancing"); }
-            
-            # check if classes are balanced in the testing data, and balance if not
-            oneCount <- summary(allTest$eventType)[[1]];
-            twoCount <- summary(allTest$eventType)[[2]];
-            if (twoCount == oneCount) {
-              useTest <- allTest;
-              # setting splt to 10 should ensure that this person is only run through once, since they're training and testing sets are balanced
-              # there's no need to do the splits.
-              if (doSplits == FALSE) { splt <- 10; }  
-            } else {
-              if (oneCount > twoCount) {   # too many of PAIR1
-                rows <- sample(which(allTest$eventType==PAIR1));
-                rows <- rows[1:(oneCount-twoCount)];
-                useTest <- allTest[-rows,];
-              } else if (twoCount > oneCount) {  # too many of PAIR2
-                rows <- sample(which(allTest$eventType==PAIR2));
-                rows <- rows[1:(twoCount-oneCount)];
-                useTest <- allTest[-rows,];
-              }    
-            }
-            if (summary(useTest$eventType)[[1]] != summary(useTest$eventType)[[2]]) { stop("testing data not balanced"); }  
-            if (summary(useTest$eventType)[[1]] == 0) { stop("no testing data after balancing"); }
-            
-            rtbl[rowctr,1] <- splt;
-            rtbl[rowctr,2] <- OFFSET;
-            subID[rowctr] <- SUB;
-            rtbl[rowctr,colctr] <- doSVM(useTrain, useTest, DO_DEFAULT_SCALING);  
-            rm(useTest, useTrain);  # take these out of memory
-            rowctr <- rowctr + 1;
-          }
-          rowctr <- rowctr - NUMSPLITS;
-          colctr <- colctr + 1;
-        }
-        rowctr <- rowctr + NUMSPLITS;
-      }
-    }
-    avgProp <- apply(rtbl[,3:(MAXTESTS+2)], 1, mean, na.rm=TRUE);  # calculate the average for each row
-    colnames(rtbl) <- c("splitNum", "timePoint", paste("runSet", 1:MAXTESTS, "out", sep=""));
-    rtbl <- data.frame(subID, rtbl, avgProp);
-    rownames(rtbl) <- 1:dim(rtbl)[1];
-    if (SCALING_LABEL == "_") { SCALING_LABEL <- "_noScaling"; }
-    write.table(rtbl, paste(outpath, SUB, "_", ROI, "_", PAIR1, "_", PAIR2, SCALING_LABEL, ".txt", sep=""));    
-  }
-}
-
-##################################################################################################################################################
+# note: cannot handle subjects that don't have all runs
+#
 # Prepare Perms
 # First, figure out how many of each type are in each run for each person.
 # this is a ROI-based analysis, classifying three types of stimuli (upempty, upred, upgreen), pairwise.
@@ -637,6 +437,7 @@ for (p in 1:length(PAIR1S)) {   # p <- 1;
 # the partitions (several runs) if possible. Might need a different scheme for every person ...
 # NEED TO CHANGE PATHS FOR ALL STEPS TO RUN (currently set up to run from Jo's directories)
 ##################################################################################################################################################
+# figure out the counts: what permutations do we need?
 
 rm(list=ls());
 
@@ -713,11 +514,6 @@ rtbl
 rtbl <- rtbl[,1:4];
 write.table(rtbl, "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
 
-##################################################################################################################################################
-# figure out the counts: what permutations do we need?
-
-rm(list=ls());
-
 tbl <- read.table("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
 #> tbl
 #      subID    item train1 test1
@@ -727,7 +523,7 @@ tbl <- read.table("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable
 #4  sub 1004 upempty     12     2
 
 ftable(tbl$item, tbl$train1)
-#         8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 27 28 29 30 31                                                                        
+#         8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 27 28 29 30 31
 #upempty  1 2  1  1  3  5  3  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
 #upgreen  0 0  0  1  0  0  3  0  1  1  1  2  3  3  1  0  0  0  0  0  0  0
 #upred    0 0  0  1  0  0  0  1  0  1  0  0  0  2  1  1  1  1  2  1  1  3
@@ -844,24 +640,6 @@ for (NUM in NUMS) {     #    NUM <- 15;   # how many in each class
 }
 
 ##################################################################################################################################################
-# confirm randomization repeatable with the same seeds
-
-rm(list=ls());
-
-set.seed(234234);
-lbls <- c(rep("a", 4), rep("b", 4))
-sample(lbls)    # [1] "a" "b" "a" "b" "a" "b" "a" "b"
-sample(lbls)    # [1] "a" "b" "b" "b" "a" "a" "a" "b"
-# same thing comes up even if r closed and restarted.
-
-
-# but not with a different seed:
-set.seed(281236);
-lbls <- c(rep("a", 4), rep("b", 4))
-sample(lbls)    # [1] "a" "b" "b" "a" "a" "a" "b" "b"
-sample(lbls)    # [1] "b" "a" "b" "b" "a" "b" "a" "a"
-
-##################################################################################################################################################
 # Half-Split Class and Perm
 # C L U S T E R 
 # Need "permpath" files (from previous step), job files (doBigPerms/jobFiles/), inputfiles from /step2/MeanSub/
@@ -879,10 +657,12 @@ SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");
 ROI <- "BG_LR_CaNaPu_native"
 #ROI <- "Parietal_mask_native"
 
-OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);
+OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5); # timepoints to classify, in TR from the first PAIR1 or PAIR2 in each event.
+# in the datatables, eventType follows a pattern: ITI - memset - delay - upgreen - ITI - probe - ITI - ITI . Offset 0 is the first upgreen (or whatever).
+# ITI is used as a filler in eventType, indicating a pause, and occurs during trials, not just in between trials.
+# also, the eventType column is in real time, not adjusted for any lag in the BOLD.
 
 for (SUB in SUBS) {  #SUB <- "sub1005";
-  
   if (ONCLUSTER == TRUE) {
     inpath <- "/scratch/aceaser/input/";
     outpath <- "/scratch/aceaser/output/"; 
@@ -907,7 +687,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
     PAIR1 <- "upempty"; PAIR2 <- "upgreen";
   }
   if (JOCOMPUTER == TRUE) {
-    inpath <- "c:/maile/svnFiles/plein/consulting/Alan/dataFilesFromServer/"; 
+    inpath <- "d:/temp/"; 
     outpath <- "d:/temp/";
     permpath <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";
     SUB <- "sub1003";
@@ -939,7 +719,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
   if (length(RUNS) > 12) { stop("too many runs"); }   # try to catch if the input data is wrong
   TRS <- unique(tbl$TR);
   if (length(TRS) != 210) { stop("too many or few TRs"); }
-  FIRSTVOXEL <- which(colnames(tbl) == "v1");  # column number of the first voxel column; bigger columns are voxels.
+  FIRSTVOXEL <- which(colnames(tbl) == "v1");  # column number of the first voxel column; all larger-index columns are voxels.
   # change some of the eventTypes so can classify
   ind <- which(levels(tbl$eventType) == "smain"); levels(tbl$eventType)[ind] <- "upempty";
   ind <- which(levels(tbl$eventType) == "smainnp"); levels(tbl$eventType)[ind] <- "upempty";
@@ -953,7 +733,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
   ind <- which(levels(tbl$eventType) == "updatenp"); levels(tbl$eventType)[ind] <- "upgreen";
   ind <- which(levels(tbl$eventType) == "delaygreen"); levels(tbl$eventType)[ind] <- "upgreen";
   
-  # find the start of each trial that's type pair1 or pair2
+  # find the **start** of each trial that's type pair1 or pair2: offset goes forwards and backwards from each first TR labeled 'PAIR'
   inds <- which(tbl$eventType == PAIR1 | tbl$eventType == PAIR2);
   tinds <- c(1, (1 + which(diff(inds) > 2)));  # these are the rows that start a trial of the type we want
   
