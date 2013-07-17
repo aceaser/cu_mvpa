@@ -183,11 +183,6 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
 
 #for (ROI in ROIS) {    # To do just one roi select that and use this instead of loop ROI <- ROIS[1];
    intbl <- read.table(gzfile(paste(inpath, "allData_", ROI, ".gz", sep="")), comment.char="", header=TRUE);
-<<<<<<< HEAD
-	# intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
-=======
-  # intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
->>>>>>> cb7aff6f45a9705a73849e254f8915362362c947
    
     FIRSTVOXEL <- which(colnames(intbl) == "v1");  # index at which "clean" voxels should start; column number of the v1 column in the input files.
     NUMVOXELS <- dim(intbl)[2] - FIRSTVOXEL + 1;  # the number of voxels in the ROI
@@ -226,86 +221,55 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
     } 
     write.table(intbl, paste(outpath, ROI, "_groupCleaned2.txt", sep="")); 
 }
+
 ##################################################################################################################################################
-# perform mean-subtraction. also add on the eventType column from the log files and save one file per person and ROI.
+# add on the eventType column from the log files and save one file per person and ROI. This WAS mean-subtraction, but now just does the labeling.
 # these are the files used in the half-split (within each person individually) classification.
 ##################################################################################################################################################
 
-rm(list=ls());
+rm(list=ls()); on.computer <- "Alan";
+# rm(list=ls()); on.computer <- "Jo";
 
-ROIpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/";
-inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/";    # where the voxel-output files are from the 'cleaning'
-logpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/logs/";   # where the log files are (R-written version)
-outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/"; 
-#ROIS <- "Parietal_mask_native";
+if (on.computer == "Alan") {
+  inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/";    # where the voxel-output files are from the 'cleaning'
+  logpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/logs/";   # where the log files are (R-written version)
+  outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/"; 
+}
+if (on.computer == "Jo") {
+  inpath <- "d:/temp/Alan/";    # where the voxel-output files are from the 'cleaning'
+  logpath <- "d:/temp/Alan/logs/";   # where the log files are (R-written version)
+  outpath <- "d:/temp/Alan/for_halfSplit/"; 
+}
 ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native","Parietal_mask_native");
-# SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="")
 SUBS <- c(1003:1009, 1011:1019);
 
 FIRSTVOXEL <- 4;   # column number of first voxel column (v1)
 NUMVOLUMES <- 210;  # 210 volumes for everyone in each run (no missing volumes, just whole runs missing)
 
-#for (ROI in ROIS) {     # ROI <- ROIS[1]; 
-    # get all of the data for everyone into memory
-    tbl <- read.table(paste(inpath, ROI, "_groupCleaned2.txt", sep=""), comment.char=""); # read in the data file
-    #tbl2 <- read.table(the rest of the data)
-    #tbl <- rbind(tbl, tbl2);  # this will be very slow, but should be ok since it only has to be done once per ROI
-    #rm(tbl2);  # get the extra table out of memory
-    if (colnames(tbl)[FIRSTVOXEL] != "v1") { stop("v1 column not at FIRSTVOXEL"); }
-    for (SUB in SUBS) {     # SUB <- 1007;
-        stbl <- subset(tbl, tbl$subID == paste("sub", SUB, sep=""));
-        RUNS <- unique(stbl$run);  # set RUNS here since it varies for different people
-        outtbl <- data.frame(array(NA, dim(stbl)));  # the output file will be the same size as the input (but different voxel values)
-        for (r in 1:length(RUNS)) {      # r <- 1;
-            intbl <- subset(stbl, stbl$run == RUNS[r]);  # just the data for one person and one run
-            if (dim(intbl)[1] != NUMVOLUMES) { stop(paste("not expected number of volumes for", ROI, SUB, RUN)); }
-            
-            vtbl <- intbl[,FIRSTVOXEL:dim(intbl)[2]];  # just the voxel columns (no label columns)
-            means <- apply(vtbl, 2, mean);  # calculate the mean, column-wise (an average for each voxel)
-            means <- matrix(data=rep(means, NUMVOLUMES), nrow=NUMVOLUMES, ncol=length(means), byrow=TRUE);  # repeat means to make a matrix
-           
-            vtbl <- vtbl - means;   # want mean-subtraction VOXEL-wise, not ROW-wise; transposing ensures the subtraction is what we want
-            if (length((((r-1)*210)+1):(r*210)) != dim(vtbl)[1] | length((((r-1)*210)+1):(r*210)) != dim(intbl)[1]) { stop("row counts don't match"); }
-            outtbl[(((r-1)*210)+1):(r*210),1:(FIRSTVOXEL-1)] <- intbl[,1:(FIRSTVOXEL-1)];
-            outtbl[(((r-1)*210)+1):(r*210),FIRSTVOXEL:dim(intbl)[2]] <- vtbl;
-        }
-        colnames(outtbl) <- colnames(stbl);
-        rownames(outtbl) <- 1:dim(outtbl)[1];
-        
-        # add the log file columns
-        ltbl <- read.table(paste(logpath, SUB, "_rewrittenLog.txt", sep=""));
-        if (dim(ltbl)[1] != dim(outtbl)[1]) { stop("row counts for ltbl and outtbl don't match"); }
+for (ROI in ROIS) {     # ROI <- ROIS[1]; 
+  # get all of the data for everyone into memory
+  tbl <- read.table(gzfile(paste(inpath, ROI, "_groupCleaned2.txt.gz", sep="")), comment.char=""); # read in the data file
+  if (colnames(tbl)[FIRSTVOXEL] != "v1") { stop("v1 column not at FIRSTVOXEL"); }
+  for (SUB in SUBS) {     # SUB <- SUBS[1];
+    stbl <- subset(tbl, tbl$subID == paste("sub", SUB, sep=""));
 
-        inds_match <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-        if (length(inds_match) != dim(outtbl)[1]) {  # not all match, so fix the row order to match ltbl
-          outtbl <- outtbl[order(outtbl$run, outtbl$TR),]; # check help for order
-          inds_match2 <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-          if (length(inds_match2) != dim(outtbl)[1]) { stop("inds_match2 don't!"); }
-        }
-        outtbl <- data.frame(ltbl$eventType, outtbl);
-        colnames(outtbl)[1] <- "eventType";  # fix the column name; don't want it it be ltbl$eventType
-        outtbl$subID <- paste("sub", SUB, sep="");  # put back to the correct string; turned into a level in earlier steps
-        write.table(outtbl, gzfile(paste(outpath, "sub", SUB, "_", ROI, "_meanSub.gz", sep="")));  # one file per subject and ROI
+    # add the log file columns
+    ltbl <- read.table(paste(logpath, SUB, "_rewrittenLog.txt", sep=""));
+    if (nrow(ltbl) != nrow(stbl)) { stop("row counts for ltbl and stbl don't match"); }
+
+    inds_match <- which(ltbl$runNumber == stbl$run & ltbl$TRnumber == stbl$TR)
+    if (length(inds_match) != nrow(stbl)) {  # not all match, so fix the row order to match ltbl
+      stbl <- stbl[order(stbl$run, stbl$TR),]; # check help for order
+      inds_match2 <- which(ltbl$runNumber == stbl$run & ltbl$TRnumber == stbl$TR)
+      if (length(inds_match2) != nrow(stbl)) { stop("inds_match2 don't!"); }
     }
+    stbl <- cbind(ltbl$eventType, stbl);
+    colnames(stbl)[1] <- "eventType";  # fix the column name; don't want it it be ltbl$eventType
+    stbl$subID <- paste("sub", SUB, sep="");  # put back to the correct string; turned into a level in earlier steps
+    write.table(stbl, gzfile(paste(outpath, "sub", SUB, "_", ROI, ".txt.gz", sep="")));  # one file per subject and ROI
+    rm(stbl, ltbl, inds_match);
+  }
 }
-
-# spot-check the mean-subtraction
-vtbl[1:5,1:5]
-intbl[1:5, FIRSTVOXEL:(FIRSTVOXEL+5)]
-means[1,1:5]
-intbl[1,FIRSTVOXEL] - means[1,1]
-intbl[2,FIRSTVOXEL] - means[1,1]
-
-intbl[1, (FIRSTVOXEL+100-1)]
-vtbl[1,100]
-means[1,100]
-intbl[1,(FIRSTVOXEL+100-1)] - means[1,100]
-
-
-intbl[10, (FIRSTVOXEL+100-1)]
-vtbl[10,100]
-means[1,100]
-intbl[10,(FIRSTVOXEL+100-1)] - means[1,100]
 
 ##################################################################################################################################################
 # prepare the input datafiles for group classification: average the examples together so one per person, ROI, and type.
@@ -435,7 +399,6 @@ for (r in 1:length(ROIS)) {   #   r <- 1;
 
 # should permute the upempty, upred, upgreen trial-type labels only; keep the time structure intact. probably best to permute labels within
 # the partitions (several runs) if possible. Might need a different scheme for every person ...
-# NEED TO CHANGE PATHS FOR ALL STEPS TO RUN (currently set up to run from Jo's directories)
 ##################################################################################################################################################
 # figure out the counts: what permutations do we need?
 
@@ -455,14 +418,10 @@ PAIRS <- c("upempty","upred","upgreen");
 #2    memset sub1008   1  2 -11.601106  -2.8148606  -8.486344
 #3    delay1 sub1008   1  3  -8.180573  -0.7729905  -7.959977
 
-rtbl <- array(NA, c(length(SUBS)*length(PAIRS), 10));   # results table
+rtbl <- array(NA, c(length(SUBS)*length(PAIRS), 4));   # results table
 rctr <- 1;
 for (sn in 1:length(SUBS)) {     # sn <- 1;
   tbl <- read.table(gzfile(paste(inpath, "sub", SUBS[sn], "_", ROI, "_meanSub.gz", sep="")), comment.char=""); # read in the data    
-  # STEPBY <- 4;
-  #if (SUBS[sn] == 1003 | SUBS[sn] == 1009 | SUBS[sn] == 1019) { STEPBY <- 3; } 
-  # if (SUBS[sn] == 1019) { STEPBY <- 3; }
-  
   # change some of the eventTypes so can classify
   ind <- which(levels(tbl$eventType) == "smain"); levels(tbl$eventType)[ind] <- "upempty";
   ind <- which(levels(tbl$eventType) == "smainnp"); levels(tbl$eventType)[ind] <- "upempty";
@@ -487,7 +446,6 @@ for (sn in 1:length(SUBS)) {     # sn <- 1;
     if (length(which(useinds < 0)) > 0) { stop("yes, have negative rows"); }
     t0tbl <- tbl[useinds,];
     
-    #for (r in seq(from=1, to=length(RUNS), by=STEPBY)) {   # r <- 1;
     numInTrain <- round(length(RUNS)/2);
     trainRuns <- RUNS[1:numInTrain];
     testRuns <- RUNS[(numInTrain+1):length(RUNS)];
@@ -509,9 +467,8 @@ for (sn in 1:length(SUBS)) {     # sn <- 1;
     rctr <- rctr + 1;
   }
 }
-colnames(rtbl) <- c("subID", "item", "train1", "test1", "train2", "test2", "train3", "test3", "train4", "test4");
+colnames(rtbl) <- c("subID", "item", "train1", "test1");
 rtbl
-rtbl <- rtbl[,1:4];
 write.table(rtbl, "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
 
 tbl <- read.table("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
@@ -522,21 +479,24 @@ tbl <- read.table("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable
 #3  sub 1003 upgreen     19    22
 #4  sub 1004 upempty     12     2
 
-ftable(tbl$item, tbl$train1)
-#         8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 27 28 29 30 31
-#upempty  1 2  1  1  3  5  3  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
-#upgreen  0 0  0  1  0  0  3  0  1  1  1  2  3  3  1  0  0  0  0  0  0  0
-#upred    0 0  0  1  0  0  0  1  0  1  0  0  0  2  1  1  1  1  2  1  1  3
+# these people are included: paste("sub", c(1003, 1005:1009, 1011:1019), sep="");
 
 # probably easiest just to read the values out of tbl.
 #           1003    1004     1005       1006        1007         1008     1009         1011     1012          1013      1014     1015
 cts <- c(13,19,18, 11,14,9, 18,16,23, 13,20,18,25, 14,21,15,24, 9,14,19, 12,21,17,24, 12,19,11, 13,22,12,17, 14,21,24, 10,20,14, 13,20,12,19,
          #    1016     1017      1018     1019
          13,17,14, 11,16,17, 14,22,23, 8,11,6,9);
-cts <- unique(cts);
-sort(cts)   # 6  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+sort(unique(cts))   # 6  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
 
 # these are the number of examples of each class in the training set, so smallest is 6 "a" and 6 "b".
+
+# smallest number of each row.
+#           1003    1004     1005       1006        1007         1008     1009         1011     1012          1013      1014     1015
+cts <- c(13,18,19, 2,15,11, 9,23,18,  13,25,20,   14,24,21,    9,17,14, 12,24,21,   11,19,19,  12,17,22,  14,24,21,   10,20,20, 12,20,19,
+         #    1016     1017      1018     1019
+         13,14,17, 11,17,16, 14,22,14,   6,11,9);
+sort(unique(cts))   #  2  6  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
+
 
 ##################################################################################################################################################
 # enumerate all of the permutations for the case of 6 examples of each class
@@ -548,30 +508,6 @@ library(gtools)
 #     eventType   subID run  TR         v1         v2          v3          v4           v5          v6
 #160    upempty sub1003   1 160   4.872750 -17.588802 -21.8477757 -11.1878543  -8.25525251  -4.1752880
 #178    upempty sub1003   1 178  19.613595  -2.468319 -24.3555882 -17.8549686  -6.42877546  -4.5097607
-#196    upempty sub1003   1 196  18.503121  -8.132381 -19.7862523  -8.1713138  -5.24597517  -2.6767529
-#229    upgreen sub1003   2  19  14.557575  50.837628  17.8342445  11.0546977   7.35696644  16.6106152
-#282    upgreen sub1003   2  72 -18.238080 -14.006488   0.8774574  -0.1830953  -0.38198620  -8.9532276
-#317    upempty sub1003   2 107  10.783649  11.108746  -8.0478356   0.6866557   3.78232044   0.8348583
-#335    upgreen sub1003   2 125   8.351642  17.503033   2.3585365   2.5915629  -3.77834850   9.0567822
-#353    upempty sub1003   2 143   6.681842   8.543316  -6.8422081  -2.9763082   7.32596058  15.9610180
-#388    upempty sub1003   2 178  10.084308   7.738995 -11.3744957   5.6793925  -3.60024792   1.0660595
-#406    upgreen sub1003   2 196 -12.293377 -10.609149   2.5709388   3.4344584  -0.70101696   3.9908642
-#422    upempty sub1003   3   2  34.621426  60.294717   3.3604033   0.6563276   1.68389980  19.8985180
-#527    upgreen sub1003   3 107 -14.027500 -27.213950   9.3878691  12.8508466  -7.93359288 -12.0057789
-#545    upempty sub1003   3 125 -14.289951 -22.920737   1.7990630   6.0984663  -2.22344884 -13.7485767
-#598    upgreen sub1003   3 178 -12.016879 -13.781577  17.7986357  14.0569013   4.41546718  -6.7927662
-#649    upempty sub1003   4  19  11.392789 -19.649489 -32.6713640 -12.1860334 -13.08576718 -13.6444731
-#667    upgreen sub1003   4  37  -1.230014 -26.352126 -15.2751848  -2.7804548  -7.28053037  -6.6732207
-#684    upempty sub1003   4  54  -7.499668 -32.327834  -2.3118059 -10.2841169 -10.67713681  -8.7518340
-#702    upgreen sub1003   4  72  -6.497959 -23.920973  -5.8902972  -3.5492536  -7.97498837  -8.2425566
-#720    upempty sub1003   4  90 -11.374423 -29.782912 -14.0034563 -13.6246320  -3.96729794  -2.4583159
-#1018   upgreen sub1003   5 178  10.652058  36.371021  12.4823338   5.0550177  16.78656645  10.1619963
-#1035   upgreen sub1003   5 195  -1.001385  38.072803   5.5977513  11.1405890   7.65418120  12.8994231
-#1069   upgreen sub1003   6  19   5.884363  30.548124  -8.9742170  -7.4789475   4.00917039   4.9442970
-#1122   upgreen sub1003   6  72   9.731409  16.643949  -6.2416120  -4.9791306  -2.28306594  -5.5044945
-#1210   upgreen sub1003   6 160 -11.884558 -26.946261  -6.7518049   2.6082717   0.02369675  -2.1811303
-#1228   upempty sub1003   6 178 -11.757239 -29.026217   0.4969134   3.8113357  -3.48435989  -3.2608422
-#1245   upempty sub1003   6 195 -14.832800 -46.463961  -2.2309309  -0.1621140  -6.66783157  -2.5804222
 
 # will need to sort by eventType before the permutations.
 
@@ -691,7 +627,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
     outpath <- "d:/temp/";
     permpath <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";
     SUB <- "sub1003";
-    PAIR1 <- "upred"; PAIR2 <- "upgreen";
+    PAIR2 <- "upred"; PAIR1 <- "upgreen";
   }
   
   
@@ -711,8 +647,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
     
     return(wrT);
   }
-  
-  
+
   if (PAIR1 == PAIR2) { stop("PAIR1 == PAIR2"); }
   tbl <- read.table(gzfile(paste(inpath, SUB, "_", ROI, "_meanSub.gz", sep="")), comment.char=""); # read in the data
   RUNS <- sort(unique(tbl$run));
