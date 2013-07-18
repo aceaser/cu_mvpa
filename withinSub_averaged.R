@@ -20,9 +20,6 @@ ROIS <- c("PFC_mask_native", "BG_LR_CaNaPu_native", "Parietal_mask_native");
 # ITI is used as a filler in eventType, indicating a pause, and occurs during trials, not just in between trials.
 # also, the eventType column is in real time, not adjusted for any lag in the BOLD.
 
-precue.offsets <- c(-4, -3, -2, -1, 0);  # old-style offsets corresponding to the two time windows: which TR to average.
-postcue.offsets <- c(2, 3, 4, 5, 6); 
-
 doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # train <- useTest; test <- useTrain;
   test <- subset(test, select=c(-subID, -run, -TR));  # get rid of non-classify or voxel columns
   train <- subset(train, select=c(-subID, -run, -TR));
@@ -99,20 +96,22 @@ for (OFFSET in c("precue", "postcue")) {   # OFFSET <- "precue";
     inds <- which(tbl$eventType == PAIR1 | tbl$eventType == PAIR2);
     tinds <- c(1, (1 + which(diff(inds) > 2)));  # these are the rows that start a trial of the type we want
     
+    # ************ new stuff *************************
     # generate the examples we want to classify.
     if (exists("do.offsets")) { rm(do.offsets); }
-    if (OFFSET == "precue") { do.offsets <- precue.offsets; } 
-    if (OFFSET == "postcue") { do.offsets <- postcue.offsets; } 
+    if (OFFSET == "precue") { do.offsets <- c(-4, -3, -2, -1, 0); }  # old-style offsets corresponding to the two time windows: which TR to average.
+    if (OFFSET == "postcue") { do.offsets <- c(2, 3, 4, 5, 6); } 
     base.inds <- inds[tinds];   # start finding data to classify; offset from time point 0: start of each trial
-    
+
     t0tbl <- data.frame(array(NA, c(length(tinds), ncol(tbl))));  # make an empty table to hold the averaged examples
     colnames(t0tbl) <- colnames(tbl);  # add the column names
     t0tbl[,1:(FIRSTVOXEL-1)] <- tbl[base.inds,1:(FIRSTVOXEL-1)];   # and the label columns
     # and now the averaged voxels
     for (i in 1:length(base.inds)) {  # i <- 1;
       these.inds <- base.inds[i] + do.offsets;
-      t0tbl[i,FIRSTVOXEL:ncol(tbl)] <- apply(tbl[these.inds,FIRSTVOXEL:ncol(tbl)], 2, mean)
+      t0tbl[i,FIRSTVOXEL:ncol(tbl)] <- apply(tbl[these.inds,FIRSTVOXEL:ncol(tbl)], 2, mean);  # actually do the averaging.
     }
+    # ************ new stuff *************************
     
     RUNS <- sort(unique(t0tbl$run));
     if (length(RUNS) > 12) { stop("too many runs"); }   # try to catch if the input data is wrong
@@ -271,63 +270,6 @@ for (pr in 1:length(PAIRS)) {
   }
 }
 all.out
-
-
-#############################################################################################################################################################
-# plots showing the means
-
-library(ggplot2);
-
-rm(list=ls());
-
-
-inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/";
-ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
-SUBS <- paste("sub", c(1003:1009, 1011:1018), sep="");
-PAIRS <- c("_upempty_upred","_upempty_upgreen","_upgreen_upred")
-
-ROI <- ROIS[1];
-PAIR <- PAIRS[1}
-
-tbl <- read.table(paste(inpath, ROI, PAIR, sep=""));
-
-OFFSETS <- unique(tbl$timePoint);
-# average over the splits, so just one mean per person and offset.
-means <- rep(NA, length(SUBS)*length(OFFSETS));
-lbls <- array(NA, c(length(SUBS)*length(OFFSETS), 2));  # label table
-ctr <- 1;  # row counter for output table
-for (SUB in SUBS) {
-    for (OFFSET in OFFSETS) {   # SUB <- SUBS[1]; OFFSET <- OFFSETS[1];
-        stbl <- subset(tbl, subID==SUB & timePoint==OFFSET);
-        if (dim(stbl)[1] > 10) { stop("ran more than 10 splits?"); }
-        means[ctr] <- mean(stbl$avgProp);
-        lbls[ctr,1] <- SUB;
-        lbls[ctr,2] <- OFFSET;
-        ctr <- ctr + 1;
-    }
-}
-mtbl <- data.frame(lbls, means);
-colnames(mtbl) <- c("subID", "offset", "meanProp");
-mtbl$offset <- factor(mtbl$offset);
-
-# http://stackoverflow.com/questions/8269016/ggplot2-boxplot-horizontal-bar-at-median
-f <- function(x, height) {
- ans <- median(x)
- data.frame(ymin = ans-height/2, ymax = ans+height/2, y = ans)
-}
-
-ttl <- "put the plot title here";
-
-ggplot(mtbl, aes(x=offset, y=meanProp)) + geom_hline(aes(yintercept=0.5), colour="darkgrey", size=1) + geom_boxplot() + scale_y_continuous(limits=c(0, 1)) +
- stat_summary(fun.data=f, geom="crossbar", height=0.03, colour=NA, fill="skyblue", width=0.8, alpha=0.5) +
- geom_point(aes(colour=subID), position=position_jitter(w=0.1)) + opts(title=ttl, legend.position="none")
-# try rug? could if do panels on offset
-
-###############################################################################################################################################################
-
-
-
-
 
 #############################################################################################################################################################
 

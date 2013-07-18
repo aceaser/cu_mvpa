@@ -593,7 +593,7 @@ SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");
 ROI <- "BG_LR_CaNaPu_native"
 #ROI <- "Parietal_mask_native"
 
-OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5); # timepoints to classify, in TR from the first PAIR1 or PAIR2 in each event.
+OFFSETS <- c("precue", "postcue"); # timebins to classify
 # in the datatables, eventType follows a pattern: ITI - memset - delay - upgreen - ITI - probe - ITI - ITI . Offset 0 is the first upgreen (or whatever).
 # ITI is used as a filler in eventType, indicating a pause, and occurs during trials, not just in between trials.
 # also, the eventType column is in real time, not adjusted for any lag in the BOLD.
@@ -606,7 +606,7 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
     
     cA <- commandArgs();   
     num  <- as.numeric(cA[5]);  # which timepoints to run
-    OFFSET <- OFFSETS[num];    # 11 total
+    OFFSET <- OFFSETS[num];    # 2 total
     
     num  <- as.numeric(cA[6]);   # second number sent specifies the pair to run.
     if (num == 1) { PAIR1 <- "upempty"; PAIR2 <- "upgreen"; } 
@@ -672,17 +672,36 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
   inds <- which(tbl$eventType == PAIR1 | tbl$eventType == PAIR2);
   tinds <- c(1, (1 + which(diff(inds) > 2)));  # these are the rows that start a trial of the type we want
   
+  # old code: use if running individual timepoints (one TR)
+ # useinds <- inds[tinds] + OFFSET;  # data to classify; offset from time point 0: start of each trial
+ # if (length(which(useinds < 0)) > 0) { stop("yes, have negative rows"); }
+ # t0tbl <- tbl[useinds,];
+ # if (OFFSET != 0) {  # need to get labels for which events these go with; offset labels are other things than what we're classifying.
+ #   uselbls <- tbl$eventType[inds[tinds]];     
+ #   if (length(uselbls) != dim(t0tbl)[1]) { stop("very wrong lengths for uselbls"); } else { t0tbl$eventType <- uselbls; }
+ # }
+  
+     # ************ new stuff *************************
+    # generate the examples we want to classify.
+    if (exists("do.offsets")) { rm(do.offsets); }
+    if (OFFSET == "precue") { do.offsets <- c(-4, -3, -2, -1, 0); }  # old-style offsets corresponding to the two time windows: which TR to average.
+    if (OFFSET == "postcue") { do.offsets <- c(2, 3, 4, 5, 6); } 
+    base.inds <- inds[tinds];   # start finding data to classify; offset from time point 0: start of each trial
+
+    t0tbl <- data.frame(array(NA, c(length(tinds), ncol(tbl))));  # make an empty table to hold the averaged examples
+    colnames(t0tbl) <- colnames(tbl);  # add the column names
+    t0tbl[,1:(FIRSTVOXEL-1)] <- tbl[base.inds,1:(FIRSTVOXEL-1)];   # and the label columns
+    # and now the averaged voxels
+    for (i in 1:length(base.inds)) {  # i <- 1;
+      these.inds <- base.inds[i] + do.offsets;
+      t0tbl[i,FIRSTVOXEL:ncol(tbl)] <- apply(tbl[these.inds,FIRSTVOXEL:ncol(tbl)], 2, mean);  # actually do the averaging.
+    }
+    # ************ new stuff *************************
+
+
   rtbl <- array(NA, c(NUMSPLITS*MAXPERMS, 7));   # results table
   subID <- rep(NA, NUMSPLITS*MAXPERMS);   # subject ID column of results table
   rowctr <- 1;
-  
-  useinds <- inds[tinds] + OFFSET;  # data to classify; offset from time point 0: start of each trial
-  if (length(which(useinds < 0)) > 0) { stop("yes, have negative rows"); }
-  t0tbl <- tbl[useinds,];
-  if (OFFSET != 0) {  # need to get labels for which events these go with; offset labels are other things than what we're classifying.
-    uselbls <- tbl$eventType[inds[tinds]];     
-    if (length(uselbls) != dim(t0tbl)[1]) { stop("very wrong lengths for uselbls"); } else { t0tbl$eventType <- uselbls; }
-  }
   
   numInTrain <- round(length(RUNS)/2);
   trainRuns <- RUNS[1:numInTrain];

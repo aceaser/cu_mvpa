@@ -184,7 +184,7 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
 #for (ROI in ROIS) {    # To do just one roi select that and use this instead of loop ROI <- ROIS[1];
    intbl <- read.table(gzfile(paste(inpath, "allData_", ROI, ".gz", sep="")), comment.char="", header=TRUE);
 <<<<<<< HEAD
-	# intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
+  # intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
 =======
   # intbl2 <-   then intbl <- rbind(intbl, intbl2)  # then rm(intbl2); to clean up
 >>>>>>> cb7aff6f45a9705a73849e254f8915362362c947
@@ -195,8 +195,8 @@ ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");   # ROI names (of the text 
     NUMVOLUMES <- max(summary(intbl$subID));  # number of volumes in each run; should be 210
     inds <- array(NA, c(length(SUBS), NUMVOLUMES));
     for (s in 1:length(SUBS)) {     # here we store the rows where each subjects' data is located         
-	tmp <- which(intbl$subID == paste("sub", SUBS[s], sep=""));
-	if (length(tmp) < 1) { stop(paste("no rows for sub", SUBS[s], "in intbl")); }
+  tmp <- which(intbl$subID == paste("sub", SUBS[s], sep=""));
+  if (length(tmp) < 1) { stop(paste("no rows for sub", SUBS[s], "in intbl")); }
         inds[s,1:length(tmp)] <- tmp; 
     }
     
@@ -276,11 +276,11 @@ NUMVOLUMES <- 210;  # 210 volumes for everyone in each run (no missing volumes, 
         if (dim(ltbl)[1] != dim(outtbl)[1]) { stop("row counts for ltbl and outtbl don't match"); }
 
         inds_match <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-	if (length(inds_match) != dim(outtbl)[1]) {  # not all match, so fix the row order to match ltbl
-		outtbl <- outtbl[order(outtbl$run, outtbl$TR),]; # check help for order
-        	inds_match2 <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
-		if (length(inds_match2) != dim(outtbl)[1]) { stop("inds_match2 don't!"); }
-	}
+  if (length(inds_match) != dim(outtbl)[1]) {  # not all match, so fix the row order to match ltbl
+    outtbl <- outtbl[order(outtbl$run, outtbl$TR),]; # check help for order
+          inds_match2 <- which(ltbl$runNumber == outtbl$run & ltbl$TRnumber == outtbl$TR)
+    if (length(inds_match2) != dim(outtbl)[1]) { stop("inds_match2 don't!"); }
+  }
         outtbl <- data.frame(ltbl$eventType, outtbl);
         colnames(outtbl)[1] <- "eventType";  # fix the column name; don't want it it be ltbl$eventType
         outtbl$subID <- paste("sub", SUB, sep="");  # put back to the correct string; turned into a level in earlier steps
@@ -315,21 +315,22 @@ intbl[10,(FIRSTVOXEL+100-1)] - means[1,100]
 
 rm(list=ls());
 
-where.run <- "Alan";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
 
 if (where.run == "Alan") {
   inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
   outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/avg_allSubs/"; 
 }
 if (where.run == "Jo") {
-  inpath <- "c:/maile/svnFiles/plein/consulting/Alan/dataFilesFromServer/";
+  inpath <- "d:/temp/Alan/for_halfSplit/";
   outpath <- "d:/temp/"; 
 }
-ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
-vox.counts <- c(1098, 2778);   # number of voxels in each ROI, in the same order as ROIS
+ROIS <- c("PFC_mask_native", "BG_LR_CaNaPu_native", "Parietal_mask_native");
+vox.counts <- c(2778, 1098, 2150);   # number of voxels in each ROI, in the same order as ROIS
 SUBS <- paste("sub", c(1005:1009, 1011:1018), sep="");   # SUBS <- c(1003:1009, 1011:1019);   # SUBS <- "sub1003";
   #removed 1003, 1004, 1019)
-OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
+#OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
+OFFSETS <- c("precue", "postcue");
 
 # tbl[1:5,1:10]
 # eventType   subID run TR        v1        v2       v3        v4         v5         v6
@@ -402,10 +403,14 @@ for (r in 1:length(ROIS)) {   #   r <- 1;
       if (length(start.inds) < 1) { stop("too few starting trials of this type"); }
       
       for (OFFSET in OFFSETS) {    # OFFSET <- OFFSETS[1]
-        useinds <- inds[start.inds] + OFFSET;  # data to classify; offset from time point 0: start of each trial
-        if (length(which(useinds < 0)) > 0) { stop("have negative rows"); }
-        temp.tbl <- tbl[useinds,5:ncol(tbl)]; # voxel columns of the rows we need out of tbl
-        temp.tbl <- apply(temp.tbl, 2, mean);  # calculate the over-trials average for each voxel
+        if (OFFSET == "precue") { do.offsets <- c(-4, -3, -2, -1, 0); }  # old-style offsets corresponding to the two time windows: which TR to average.
+        if (OFFSET == "postcue") { do.offsets <- c(2, 3, 4, 5, 6); } 
+        
+        # useinds holds the row numbers of *all* the trials, all the offsets.
+        useinds <- inds[start.inds] + do.offsets[1];  # data to classify; offset from time point 0: start of each trial
+        for (i in 2:length(do.offsets)) { useinds <- union(useinds, inds[start.inds] + do.offsets[i]); }  # add on all the other timepoints in the timebin
+        
+        temp.tbl <- apply(tbl[useinds,5:ncol(tbl)], 2, mean); # voxel columns of the rows we need out of tbl; calculate the over-trials average for each voxel
         if (length(temp.tbl) != vox.counts[r]) { stop("wrong number of voxels in temp.tbl after averaging"); }
         if (length(which(is.na(temp.tbl))) > 0) { stop("NAs in temp.tbl after averaging"); }
         
@@ -417,7 +422,7 @@ for (r in 1:length(ROIS)) {   #   r <- 1;
         rowctr <- rowctr + 1;  # move counter
       }
     }
-    write.table(out.tbl, gzfile(paste(outpath, ROIS[r], "_", do.names[p], "_avg_allSubs.txt.gz", sep=""))); 
+    write.table(out.tbl, gzfile(paste(outpath, ROIS[r], "_", do.names[p], "_avg_allSubs_timebins.txt.gz", sep=""))); 
   }
 }
 
@@ -724,17 +729,17 @@ for (do.offset in c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)) {
           if (i == 8) { do.perms <- 7001:8000; }
           if (i == 9) { do.perms <- 8001:8191; last.perm <- 191; }
 
-	  if (length(do.perms) != last.perm) { stop("wrong lengths"); }
+    if (length(do.perms) != last.perm) { stop("wrong lengths"); }
           out.tbl[do.perms,] <- tbl[1:last.perm,];
           # move the rows we need over to the all-together file. code is stupid because the output files
 # were made always starting at the first row, but have 8191 rows.
         }
-	
-	# confirm no NA in out.tbl
-	if (length(which(is.na(out.tbl))) > 0) { stop("NAs???"); }
-	if (max(diff(out.tbl[,1])) != 1) { stop("missed one??"); }
-	if (min(diff(out.tbl[,1])) != 1) { stop("missed one??"); }
-	colnames(out.tbl) <- colnames(tbl);
+  
+  # confirm no NA in out.tbl
+  if (length(which(is.na(out.tbl))) > 0) { stop("NAs???"); }
+  if (max(diff(out.tbl[,1])) != 1) { stop("missed one??"); }
+  if (min(diff(out.tbl[,1])) != 1) { stop("missed one??"); }
+  colnames(out.tbl) <- colnames(tbl);
         write.table(out.tbl,gzfile(out.fname));
       }
     }
