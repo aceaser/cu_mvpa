@@ -1,21 +1,27 @@
-make an error
-# alan's half-splitting within-subjects analyses; not permutation tests.
-
+make an error   # do not source this file.
+##################################################################################################################################################
+# the within-subjects analyses for Alan's data, without the permutation testing.
+# Averaged timepoints rather than the offsets. "precue" is 4-12 seconds (offsets -4:0), "postcue" is 16-24 seconds (offsets 2:6).
+# the permutation tests are contained in ClassificationScript_HalfSplit.R (also in git).
+# Jo Etzel, 17 July 2013.
+##################################################################################################################################################
+# Alan's half-splitting within-subjects analyses; not permutation tests. 
 
 library(e1071);  # R interface to libsvm
 
-rm(list=ls()); ONNIL <- FALSE; ONCLUSTER <- TRUE; JOCOMPUTER <- FALSE;
-# rm(list=ls()); ONNIL <- FALSE; ONCLUSTER <- FALSE; JOCOMPUTER <- TRUE;
+rm(list=ls()); where.run <- "cluster";
+# rm(list=ls()); where.run <- "Jo"
 
 SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");
-#ROI <- "PFC_mask_native"     
-ROI <- "BG_LR_CaNaPu_native"
-#ROI <- "Parietal_mask_native"
+ROIS <- c("PFC_mask_native", "BG_LR_CaNaPu_native", "Parietal_mask_native");
 
-OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5); # timepoints to classify, in TR from the first PAIR1 or PAIR2 in each event.
+#OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5); # timepoints to classify, in TR from the first PAIR1 or PAIR2 in each event.
 # in the datatables, eventType follows a pattern: ITI - memset - delay - upgreen - ITI - probe - ITI - ITI . Offset 0 is the first upgreen (or whatever).
 # ITI is used as a filler in eventType, indicating a pause, and occurs during trials, not just in between trials.
 # also, the eventType column is in real time, not adjusted for any lag in the BOLD.
+
+precue.offsets <- c(-4, -3, -2, -1, 0);  # old-style offsets corresponding to the two time windows: which TR to average.
+postcue.offsets <- c(2, 3, 4, 5, 6); 
 
 doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # train <- useTest; test <- useTrain;
   test <- subset(test, select=c(-subID, -run, -TR));  # get rid of non-classify or voxel columns
@@ -29,7 +35,7 @@ doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # train <- useTest; test <
   return(wrT);
 }
 
-if (ONCLUSTER == TRUE) {
+if (where.run == "cluster") {
   inpath <- "~/tmp/input/";
   outpath <- "~/tmp/output/"; 
   
@@ -39,14 +45,13 @@ if (ONCLUSTER == TRUE) {
   if (num == 2) { PAIR1 <- "upempty"; PAIR2 <- "upred"; } 
   if (num == 3) { PAIR1 <- "upgreen"; PAIR2 <- "upred";  }
 }
-if (ONNIL == TRUE) {
+if (where.run == "NIL") {
   inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
   outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
   permpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/permInputFiles/";   # location of 6eachTable.txt, 8eachTable.txt, etc.
-  SUB <- "sub1003";
   PAIR1 <- "upempty"; PAIR2 <- "upgreen";
 }
-if (JOCOMPUTER == TRUE) {
+if (where.run == "Jo") {
   inpath <- "d:/temp/Alan/for_halfSplit/";
   outpath <- "d:/temp/Alan/halfSplit_out/";
   PAIR1 <- "upempty"; PAIR2 <- "upgreen";
@@ -57,9 +62,9 @@ NUMSPLITS <- 10;    # there will be 10, but we're running them one at a time.
 if (PAIR1 == PAIR2) { stop("PAIR1 == PAIR2"); }
 
 DO_RUN_COLUMN_MS <- FALSE;   # these flags indicate which sort of scaling to do.
-DO_RUN_COLUMN_SC <- TRUE; 
+DO_RUN_COLUMN_SC <- FALSE; 
 DO_ROW_SCALING <- FALSE;
-DO_DEFAULT_SCALING <- FALSE;
+DO_DEFAULT_SCALING <- TRUE;
 sc.lbl <- "_";  # make a label for the output files showing the type of scaling used for this classification
 if (DO_RUN_COLUMN_MS == TRUE) { sc.lbl <- paste(sc.lbl, "RunColMS", sep=""); }
 if (DO_RUN_COLUMN_SC == TRUE) { sc.lbl <- paste(sc.lbl, "RunColSC", sep=""); }
@@ -67,13 +72,13 @@ if (DO_ROW_SCALING == TRUE) { sc.lbl <- paste(sc.lbl, "RowSc", sep=""); }
 if (DO_DEFAULT_SCALING == TRUE) { sc.lbl <- paste(sc.lbl, "DefaultSc", sep=""); 
 } else { sc.lbl <- paste(sc.lbl, "Only", sep=""); }
 
-
-for (OFFSET in rev(OFFSETS)) {   # OFFSET <- OFFSETS[11]
+for (ROI in ROIS) {
+for (OFFSET in c("precue", "postcue")) {   # OFFSET <- "precue";
   rtbl <- data.frame(array(NA, c(NUMSPLITS*length(SUBS), 6)));   # results table
   colnames(rtbl) <- c("splitNum", "timePoint", "subID", "firstTest", "secondTest", "avgProp");
   ctr <- 1;
   for (sid in 1:length(SUBS)) {  # sid <- 1;
-    tbl <- read.table(gzfile(paste(inpath, SUBS[sid], "_", ROI, ".txt.gz", sep="")), comment.char=""); # read in the data
+    tbl <- read.table(gzfile(paste(inpath, SUBS[sid], "_", ROI, "_meanSub.gz", sep="")), comment.char=""); # read in the data
     TRS <- unique(tbl$TR);
     if (length(TRS) != 210) { stop("too many or few TRs"); }
     FIRSTVOXEL <- which(colnames(tbl) == "v1");  # column number of the first voxel column; all larger-index columns are voxels.
@@ -94,13 +99,21 @@ for (OFFSET in rev(OFFSETS)) {   # OFFSET <- OFFSETS[11]
     inds <- which(tbl$eventType == PAIR1 | tbl$eventType == PAIR2);
     tinds <- c(1, (1 + which(diff(inds) > 2)));  # these are the rows that start a trial of the type we want
     
-    useinds <- inds[tinds] + OFFSET;  # data to classify; offset from time point 0: start of each trial
-    if (length(which(useinds < 0)) > 0) { stop("yes, have negative rows"); }
-    t0tbl <- tbl[useinds,];
-    if (OFFSET != 0) {  # need to get labels for which events these go with; offset labels are other things than what we're classifying.
-      uselbls <- tbl$eventType[inds[tinds]];     
-      if (length(uselbls) != dim(t0tbl)[1]) { stop("very wrong lengths for uselbls"); } else { t0tbl$eventType <- uselbls; }
+    # generate the examples we want to classify.
+    if (exists("do.offsets")) { rm(do.offsets); }
+    if (OFFSET == "precue") { do.offsets <- precue.offsets; } 
+    if (OFFSET == "postcue") { do.offsets <- postcue.offsets; } 
+    base.inds <- inds[tinds];   # start finding data to classify; offset from time point 0: start of each trial
+    
+    t0tbl <- data.frame(array(NA, c(length(tinds), ncol(tbl))));  # make an empty table to hold the averaged examples
+    colnames(t0tbl) <- colnames(tbl);  # add the column names
+    t0tbl[,1:(FIRSTVOXEL-1)] <- tbl[base.inds,1:(FIRSTVOXEL-1)];   # and the label columns
+    # and now the averaged voxels
+    for (i in 1:length(base.inds)) {  # i <- 1;
+      these.inds <- base.inds[i] + do.offsets;
+      t0tbl[i,FIRSTVOXEL:ncol(tbl)] <- apply(tbl[these.inds,FIRSTVOXEL:ncol(tbl)], 2, mean)
     }
+    
     RUNS <- sort(unique(t0tbl$run));
     if (length(RUNS) > 12) { stop("too many runs"); }   # try to catch if the input data is wrong
     
@@ -210,6 +223,7 @@ for (OFFSET in rev(OFFSETS)) {   # OFFSET <- OFFSETS[11]
   rownames(rtbl) <- 1:nrow(rtbl);
   write.table(rtbl, paste(outpath, "halfSplit_", ROI, "_", PAIR1, "_", PAIR2, "_", OFFSET, sc.lbl, ".txt", sep=""));    
 }
+}
 
 #############################################################################################################################################################
 # results tables. all offsets and people are in the files; one file per pair and ROI.
@@ -217,67 +231,48 @@ for (OFFSET in rev(OFFSETS)) {   # OFFSET <- OFFSETS[11]
 rm(list=ls());
 
 inpath <- "d:/temp/Alan/halfSplit_out/";
-ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native");
 SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");
 PAIRS <- c("upempty_upgreen","upgreen_upred","upempty_upred")
-OFFSETS <- -5:5
+OFFSETS <- c("precue", "postcue");
+ROIS <- c("BG_LR_CaNaPu_native", "PFC_mask_native", "Parietal_mask_native");
+source("d:/svnFiles/other/R_code/formatNumberOutput.R");  # for doformat
 
-ROI <- ROIS[1];
+suffix <- "DefaultSc";  # suffix <- "RowScOnly"
 
-#> head(tbl)
-#  splitNum timePoint   subID firstTest secondTest   avgProp
-#1        1        -5 sub1003 0.5000000  0.5384615 0.5192308
-#2        2        -5 sub1003 0.4444444  0.6923077 0.5683761
-#3        3        -5 sub1003 0.5277778  0.6153846 0.5715812
+all.out <- data.frame(array(NA, c(length(OFFSETS)*length(ROIS), length(PAIRS)+2)))
+all.means <- data.frame(array(NA, c(length(OFFSETS)*length(ROIS), length(PAIRS)+2)))
+colnames(all.out) <- c("ROI", "timebin", PAIRS)
+colnames(all.means) <- colnames(all.out);
 
-all.out <- array(NA, c(length(OFFSETS), length(PAIRS)));
-all.means <- array(NA, c(length(OFFSETS), length(PAIRS)));
-colnames(all.out) <- PAIRS;
-colnames(all.means) <- PAIRS;
-
-for (pr in 1:length(PAIRS)) {   # pr <- 1;
-  # average over the splits, so just one mean per person and offset.
-  mtbl <- data.frame(array(NA, c(length(SUBS)*length(OFFSETS), 3)))
-  colnames(mtbl) <- c("subID", "offset", "meanProp");
-  ctr <- 1;  # row counter for output table
-  for (OFFSET in OFFSETS) {   # SUB <- SUBS[1]; OFFSET <- OFFSETS[1];
-    fname <- paste(inpath, "halfSplit_", ROI, "_", PAIRS[pr], "_", OFFSET, "_RowSCOnly.txt", sep="")
-    if (file.exists(fname)) {
-      tbl <- read.table(fname);
-      for (SUB in SUBS) {
-        stbl <- subset(tbl, subID==SUB & timePoint==OFFSET);
-        if (dim(stbl)[1] > 10) { stop("ran more than 10 splits?"); }
-        mtbl[ctr,1] <- SUB;
-        mtbl[ctr,2] <- OFFSET;
-        mtbl[ctr,3] <- mean(stbl$avgProp);
+for (pr in 1:length(PAIRS)) {
+  ctr <- 1;
+  for (r in 1:length(ROIS)) {    
+    for (OFFSET in OFFSETS) {   # OFFSET <- OFFSETS[1]; pr <- 1; r <- 1;
+      # average over the splits, so just one mean per person and offset.
+      fname <- paste(inpath, "halfSplit_", ROIS[r], "_", PAIRS[pr], "_", OFFSET, "_", suffix, ".txt", sep="")
+      if (file.exists(fname)) {
+        tbl <- read.table(fname);
+        means <- rep(NA, length(SUBS))          
+        for (sn in 1:length(SUBS)) {    # sn <- 1;
+          stbl <- subset(tbl, subID==SUBS[sn] & timePoint==OFFSET);
+          if (dim(stbl)[1] > 10) { stop("ran more than 10 splits?"); }
+          means[sn] <- mean(stbl$avgProp);
+        }   
+        
+        # return the mean and a p-value from a t-test for mean > 0.5; an estimate of significance.
+        ttest <- t.test(means, alternative="greater", mu=0.5);
+        all.out[ctr,1] <- ROIS[r];    all.means[ctr,1] <- ROIS[r];
+        all.out[ctr,2] <- OFFSET;     all.means[ctr,2] <- OFFSET;
+        all.out[ctr,pr+2] <- paste(doformat(mean(means),2), " (", doformat(ttest$p.value, 3), ")", sep="");
+        all.means[ctr,pr+2] <- mean(means);  # average over the people so just one mean per offset.
         ctr <- ctr + 1;
       }
     }
   }
-  
-  # now average over the people so just one mean per offset.
-  # return the mean and a p-value from a t-test for mean > 0.5. this is *just* an estimate of significance.
-  out <- rep(NA, length(OFFSETS));
-  means <- rep(NA, length(OFFSETS));
-  for (i in 1:length(OFFSETS)) {   # i <- 1;
-    stbl <- subset(mtbl, offset==OFFSETS[i]);
-    if (nrow(stbl) > 0) {
-      if (nrow(stbl) > length(SUBS)) { stop("too many rows"); }
-      ttest <- t.test(stbl$meanProp, alternative="greater", mu=0.5);
-      out[i] <- paste(round(mean(stbl$meanProp),2), " (", round(ttest$p.value, 3), ")", sep="");
-      means[i] <- mean(stbl$meanProp)
-    }
-  }
-  all.out[,pr] <- out;
-  all.means[,pr] <- means;
 }
-cbind(OFFSETS, all.out)
+all.out
 
-boxplot(meanProp~offset, data=mtbl)
 
-plot(x=OFFSETS, y=means, type='l', ylab="classification accuracy", xlab=ROI, main="")
-
-seq(from=2,to=22, by=2)
 #############################################################################################################################################################
 # plots showing the means
 
