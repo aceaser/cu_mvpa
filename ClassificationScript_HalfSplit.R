@@ -932,19 +932,18 @@ for (SUB in SUBS) {  #SUB <- "sub1019";
 rm(list=ls()); 
 
 path <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/output/";
-outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
 set.seed(234984);  # so can reproduce the permutation p-values, hopefully they don't jitter much with different seeds.
 
 OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5); 
 SUBS <- paste("sub", c(1003, 1005:1009, 1011:1019), sep="");
 
-# PAIR1 <- "upempty"; PAIR2 <- "upgreen";
-# PAIR1 <- "upempty"; PAIR2 <- "upred";
- PAIR1 <- "upgreen"; PAIR2 <- "upred";
+PAIR1 <- "upempty"; PAIR2 <- "upgreen";
+#PAIR1 <- "upempty"; PAIR2 <- "upred";
+#PAIR1 <- "upgreen"; PAIR2 <- "upred";
 
-ROI <- "BG_LR_CaNaPu_native"    # "PFC_mask_native"
+#ROI <- "BG_LR_CaNaPu_native"    # "PFC_mask_native"
 #ROI <- "PFC_mask_native"
-#ROI <- "Parietal_mask_native"
+ROI <- "Parietal_mask_native"
 
 #> head(intbl)
 #    subID splitNum timePoint firstTest secondTest X1stTrainSize X2ndTrainSize permNum   avgProp
@@ -954,7 +953,7 @@ ROI <- "BG_LR_CaNaPu_native"    # "PFC_mask_native"
 
 ptbl_all <- array(NA, c(length(OFFSETS),2));  # mean & p-value averaged across included subjects
 ptbl_eachSub <- array(NA, c(length(OFFSETS), length(SUBS)));
-for (o in 1:length(OFFSETS)) {   # o <- 1;
+for (o in 1:length(OFFSETS)) {   # o <- 2;
   temptbl <- array(NA, c(1001, length(SUBS)));  # put all the subjects' permutation accuracies into here
   for (s in 1:length(SUBS)) { # s <- 1;
     fname <- paste(path, SUBS[s], "_", OFFSETS[o], "_", ROI, "_", PAIR1, "_", PAIR2, "_defSc_halfSplt_perms.txt.gz", sep="")
@@ -1001,7 +1000,7 @@ for (o in 1:length(OFFSETS)) {   # o <- 1;
   means <- apply(temptbl, 1, mean, na.rm=TRUE);  # na.rm to take out all-NA columns
   if (length(means) != 1001 | length(which(is.na(means))) > 0) { stop("wrong means"); }
   ptbl_all[o,1] <- means[1]; 
-  ptbl_all[o,2] <- length(which(means[2:length(means)] > means[1]))/(length(PERMS)-1); 
+  ptbl_all[o,2] <- length(which(means[2:length(means)] > means[1]))/(length(means)); 
 }
 colnames(ptbl_eachSub) <- SUBS;
 colnames(ptbl_all) <- c("allSubsMean", "allSubsP");
@@ -1012,6 +1011,6 @@ apply(ptbl_eachSub, 1, mean)
 out.tbl <- cbind(OFFSETS, ptbl_all, ptbl_eachSub, apply(ptbl_eachSub, 1, mean))
 # either write or set an outpath, write out what the file name should be called.txt
 #write.table(out.tbl, some.path)
-      write.table(out.tbl, gzfile(paste(outpath, ROI, "_", PAIR1, "_", PAIR2, "_defSc_halfSplt_perms.txt.gz", sep="")));    
+     # write.table(out.tbl, gzfile(paste(outpath, ROI, "_", PAIR1, "_", PAIR2, "_defSc_halfSplt_perms.txt.gz", sep="")));    
 
 ######################################################################################################################################################################
