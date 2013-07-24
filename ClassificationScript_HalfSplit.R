@@ -650,7 +650,7 @@ for (NUM in NUMS) {     #    NUM <- 15;   # how many in each class
 # C L U S T E R 
 # Need "permpath" files (from previous step), job files (doBigPerms/jobFiles/), inputfiles from /step2/MeanSub/
 # Run by submitting ./startAll_pair1.sh (or "pair2.sh", etc). Runs pair for every subject for individual roi. Must manually change roi
-# in script and re-run. Subject 2004 can't be run.
+# in script and re-run. Subject 1004 can't be run.
 ##################################################################################################################################################
 
 library(e1071);  # R interface to libsvm
@@ -658,68 +658,70 @@ library(e1071);  # R interface to libsvm
 rm(list=ls()); ONNIL <- FALSE; ONCLUSTER <- TRUE; JOCOMPUTER <- FALSE;
 # rm(list=ls()); ONNIL <- FALSE; ONCLUSTER <- FALSE; JOCOMPUTER <- TRUE;
 
-SUBS <- paste("sub", c(1003:1009, 1011:1019), sep="");
+SUBS <- paste("sub", c(1003, 1005:1009, 1011:1019), sep="");
 #ROI <- "PFC_mask_native"     
-ROI <- "BG_LR_CaNaPu_native"
-#ROI <- "Parietal_mask_native"
+#ROI <- "BG_LR_CaNaPu_native"
+ROI <- "Parietal_mask_native"
 
 OFFSETS <- c("precue", "postcue"); # timebins to classify
 # in the datatables, eventType follows a pattern: ITI - memset - delay - upgreen - ITI - probe - ITI - ITI . Offset 0 is the first upgreen (or whatever).
 # ITI is used as a filler in eventType, indicating a pause, and occurs during trials, not just in between trials.
 # also, the eventType column is in real time, not adjusted for any lag in the BOLD.
 
-for (SUB in SUBS) {  #SUB <- "sub1005";
-  if (ONCLUSTER == TRUE) {
-    inpath <- "/scratch/aceaser/input/";
-    outpath <- "/scratch/aceaser/output/"; 
-    permpath <- "/scratch/aceaser/permInputFiles/";   # location of 6eachTable.txt, 8eachTable.txt, etc.
-    
-    cA <- commandArgs();   
-    num  <- as.numeric(cA[5]);  # which timepoints to run
-    OFFSET <- OFFSETS[num];    # 2 total
-    
-    num  <- as.numeric(cA[6]);   # second number sent specifies the pair to run.
-    if (num == 1) { PAIR1 <- "upempty"; PAIR2 <- "upgreen"; } 
-    if (num == 2) { PAIR1 <- "upempty"; PAIR2 <- "upred"; } 
-    if (num == 3) { PAIR1 <- "upgreen"; PAIR2 <- "upred";  }
-    
-    splt  <- as.numeric(cA[7]);   # and third the split, 1:10.
-  }
-  if (ONNIL == TRUE) {
-    inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
-    outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
-    permpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/permInputFiles/";   # location of 6eachTable.txt, 8eachTable.txt, etc.
-    SUB <- "sub1003";
-    PAIR1 <- "upempty"; PAIR2 <- "upgreen";
-  }
-  if (JOCOMPUTER == TRUE) {
-    inpath <- "d:/temp/"; 
-    outpath <- "d:/temp/";
-    permpath <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";
-    SUB <- "sub1003";
-    PAIR2 <- "upred"; PAIR1 <- "upgreen";
-  }
+if (ONCLUSTER == TRUE) {
+  inpath <- "/scratch/aceaser/input/";
+  outpath <- "/scratch/aceaser/output/"; 
+  permpath <- "/scratch/aceaser/permInputFiles/";   # location of 6eachTable.txt, 8eachTable.txt, etc.
   
+  cA <- commandArgs();   
+  num  <- as.numeric(cA[5]);  # which timepoints to run
+  OFFSET <- OFFSETS[num];    # 2 total
   
-  SEEDS <- c(51591, 36414, 56347, 38442, 20176, 51348, 89727, 67106, 23543, 52663);  # 10 random seeds, from sample(1:100000)[1:10]
-  NUMSPLITS <- 1;    # there will be 10, but we're running them one at a time.
-  MAXPERMS <- 1024;  # the most permutations for any person and pair. there will usually be fewer than this, but this sets up the results table.
-  DO_DEFAULT_SCALING <- TRUE;    # flags for type of scaling to do.
+  num  <- as.numeric(cA[6]);   # second number sent specifies the pair to run.
+  if (num == 1) { PAIR1 <- "upempty"; PAIR2 <- "upgreen"; } 
+  if (num == 2) { PAIR1 <- "upempty"; PAIR2 <- "upred"; } 
+  if (num == 3) { PAIR1 <- "upgreen"; PAIR2 <- "upred";  }
   
-  doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # test <- useTest; train <- useTrain;
-    test <- subset(test, select=c(-subID, -run, -TR));  # get rid of non-classify or voxel columns
-    train <- subset(train, select=c(-subID, -run, -TR));
-    if (colnames(test)[2] != "v1" | colnames(train)[2] != "v1") { stop("v1 not found where expected"); }
-    
-    fit <- svm(eventType~., data=train, type="C-classification", kernel="linear", cost=1, scale=DO_DEFAULT_SCALING);  
-    tree <- table(test$eventType, predict(fit, test));
-    if (dim(tree)[2]==1 | dim(tree)[1]==1) { wrT <- 0.5; } else { wrT <- sum(diag(tree))/sum(tree); }
-    
-    return(wrT);
-  }
+  splt  <- as.numeric(cA[7]);   # and third the split, 1:10.
+}
+if (ONNIL == TRUE) {
+  inpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/step2/MeanSub/";
+  outpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/"; 
+  permpath <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/permInputFiles/";   # location of 6eachTable.txt, 8eachTable.txt, etc.
+  SUB <- "sub1003";
+  PAIR1 <- "upempty"; PAIR2 <- "upgreen";
+}
+if (JOCOMPUTER == TRUE) {
+  inpath <- "d:/temp/"; 
+  outpath <- "d:/temp/";
+  permpath <- "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/";
+  SUB <- "sub1003";
+  PAIR2 <- "upred"; PAIR1 <- "upgreen";
+}
 
-  if (PAIR1 == PAIR2) { stop("PAIR1 == PAIR2"); }
-  tbl <- read.table(gzfile(paste(inpath, SUB, "_", ROI, "_meanSub.gz", sep="")), comment.char=""); # read in the data
+
+SEEDS <- c(51591, 36414, 56347, 38442, 20176, 51348, 89727, 67106, 23543, 52663);  # 10 random seeds, from sample(1:100000)[1:10]
+NUMSPLITS <- 10;  
+MAXPERMS <- 1024;  # the most permutations for any person and pair. there will usually be fewer than this, but this sets up the results table.
+DO_DEFAULT_SCALING <- TRUE;    # flags for type of scaling to do.
+
+doSVM <- function(train, test, DO_DEFAULT_SCALING) {  # test <- useTest; train <- useTrain;
+  test <- subset(test, select=c(-subID, -run, -TR));  # get rid of non-classify or voxel columns
+  train <- subset(train, select=c(-subID, -run, -TR));
+  if (colnames(test)[2] != "v1" | colnames(train)[2] != "v1") { stop("v1 not found where expected"); }
+  
+  fit <- svm(eventType~., data=train, type="C-classification", kernel="linear", cost=1, scale=DO_DEFAULT_SCALING);  
+  tree <- table(test$eventType, predict(fit, test));
+  if (dim(tree)[2]==1 | dim(tree)[1]==1) { wrT <- 0.5; } else { wrT <- sum(diag(tree))/sum(tree); }
+  
+  return(wrT);
+}
+
+if (PAIR1 == PAIR2) { stop("PAIR1 == PAIR2"); }
+for (SUB in SUBS) {  #SUB <- "sub1005";
+  fname <- paste(inpath, SUB, "_", ROI, "_meanSub.gz", sep="");
+  if (!file.exists(fname)) { stop(paste("missing file", fname)); }
+  tbl <- read.table(gzfile(fname), comment.char=""); # read in the data
   RUNS <- sort(unique(tbl$run));
   if (length(RUNS) > 12) { stop("too many runs"); }   # try to catch if the input data is wrong
   TRS <- unique(tbl$TR);
@@ -767,7 +769,6 @@ for (SUB in SUBS) {  #SUB <- "sub1005";
       t0tbl[i,FIRSTVOXEL:ncol(tbl)] <- apply(tbl[these.inds,FIRSTVOXEL:ncol(tbl)], 2, mean);  # actually do the averaging.
     }
     # ************ new stuff *************************
-
 
   rtbl <- array(NA, c(NUMSPLITS*MAXPERMS, 7));   # results table
   subID <- rep(NA, NUMSPLITS*MAXPERMS);   # subject ID column of results table
