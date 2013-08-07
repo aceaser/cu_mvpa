@@ -542,6 +542,7 @@ rtbl
 write.table(rtbl, "c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
 
 tbl <- read.table("c:/maile/svnFiles/plein/consulting/Alan/setupPerms/countTable.txt");
+#cbind(tbl, apply(tbl[,3:4],1,min))
 #> tbl
 #      subID    item train1 test1
 #1  sub 1003 upempty     13    18
@@ -585,7 +586,7 @@ rm(list=ls());
 
 # 6  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
 NUMS <- c(6, 8, 9, 10);  # , 18, 19, 20, 21, 22, 23, 24, 25
-for (NUM in NUMS) {     #    NUM <- 6;   # how many in each class
+for (NUM in NUMS) {     #    NUM <- 8;   # how many in each class
   ans <- 0;  # figure out how many relabelings are possible. this is by how many of the true-labeled data of each type have their label changed.
   for (i in 0:NUM) { ans <- ans + choose(NUM,i); }
   ans

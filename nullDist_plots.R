@@ -230,6 +230,152 @@ for (r in 1:length(roi.ids)) {
 }
 
 #############################################################################################################################################
+# between-subjects analysis, graphs with shading for significance.
+
+
+rm(list=ls());
+
+where.run <- "Jo";   # where.run <- "Alan";  # set the paths according to which computer this is being run on
+
+if (where.run == "Alan") { path <- "/data/nil-external/ccp/ALAN_CU/FORMVPA/classify/AllPerm/"; }
+if (where.run == "Jo") { path <- "d:/temp/Alan/allPerm/"; }
+OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
+#ROI <- "BG_LR_CaNaPu_native";  
+#ROI <- "PFC_mask_native"; 
+ROI <- "Parietal_mask_native";
+
+scaling <- "DefaultSc";   # scaling <- "noScaling";
+#pair <- "upgreenCOR_upgreenINCOR"
+#pair <- "upredCOR_upredINCOR"
+pair <- "upemptyCOR_upemptyINCOR"
+yttl <- "frequency, in 1000 permutations";
+xttl <- "accuracy of the permuted-label datasets"
+    
+layout(matrix(1:12, c(3,4), byrow=TRUE));
+for (do.offset in OFFSETS) {  # do.offset <- 5;
+  fname <- paste(path, "l1subOut_", do.offset, "_", ROI, "_", pair, "_", scaling, "_comPerms.txt.gz", sep="")
+  if (file.exists(fname)) {
+    in.tbl <- read.table(fname)
+  
+    if (var(in.tbl$avg.acc) == 0) {   # recalculate the avg.acc column - it was messed up in the first file
+      if (do.offset != -5 | scaling != "DefaultSc") { stop("no variance in avg.acc?"); } 
+      for (i in 1:nrow(in.tbl)) { in.tbl$avg.acc[i] <- mean(as.vector(in.tbl[i,4:16], mode="numeric")); }
+    }
+  
+    p.value <- (1+length(which(in.tbl$avg.acc[2:nrow(in.tbl)] > in.tbl$avg.acc[1])))/nrow(in.tbl)
+    
+    ttl <- paste("offset= ", do.offset, " p=", round(p.value, 3), "\n", pair, sep="");
+    hist(in.tbl$avg.acc[2:nrow(in.tbl)], xlim=c(0,1), breaks=seq(from=0, to=1, by=0.05), xlab=xttl, main=ttl, ylab=yttl, col='cornsilk')
+    lines(x=c(0.5,0.5), y=c(-10,9000), col='grey', lwd=2);  # chance
+    lines(x=rep(in.tbl$avg.acc[1], 2), y=c(-10,9000), col='salmon', lwd=2);  # true-labeled accuracy
+  }
+}
+
+
+# to simplify plotting code, first (and just once) append the avg.acc columns of each timepoint so just one file per ROI and pair
+rm(list=ls());
+
+in.path <- "d:/temp/Alan/allPerm/";    
+out.path <- "d:/temp/Alan/forplotting/"; 
+
+pair.ids <- c("upgreenCOR_upgreenINCOR", "upredCOR_upredINCOR", "upemptyCOR_upemptyINCOR");
+roi.ids <- c("BG_LR_CaNaPu_native", "PFC_mask_native", "Parietal_mask_native");
+OFFSETS <- c(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5);  # offset in TR from the trial starts that we will classify
+scaling <- "DefaultSc"; 
+
+for (r in 1:length(roi.ids)) {
+  for (p in 1:length(pair.ids)) {   # p <- 1; r <- 1;
+    out.tbl <- array(NA, c(8191,length(OFFSETS)));
+    colnames(out.tbl) <- paste(OFFSETS, "offset", sep="");
+    for (i in 1:length(OFFSETS)) {    # i <- 1;
+      tbl <- read.table(gzfile(paste(in.path, "l1subOut_", OFFSETS[i], "_", roi.ids[r], "_", pair.ids[p], "_", scaling, "_comPerms.txt.gz", sep="")));
+      if (nrow(tbl) != 8191) { stop("nrow(tbl) != 8191"); }
+      out.tbl[,i] <- tbl$avg.acc;
+    }
+    write.table(out.tbl, paste(out.path, pair.ids[p], "_", roi.ids[r], "_nullDists.txt", sep=""));
+  }
+}
+
+
+
+rm(list=ls());
+
+path <- "d:/temp/Alan/forplotting/";    # these files are on the server: /data/nil-external/ccp/ALAN_CU/FORMVPA/classify/permResults_plotting/
+pair.ids <- c("upgreenCOR_upgreenINCOR", "upredCOR_upredINCOR", "upemptyCOR_upemptyINCOR");
+pair.ttls <- c("Upgreen", "Upred", "Upempty");  # plot titles; same order as pair.ids
+roi.ids <- c("BG_LR_CaNaPu_native", "PFC_mask_native", "Parietal_mask_native");
+roi.ttls <- c("Striatum", "PFC", "Parietal");  # plot titles; same order as roi.ids
+timepoints <- seq(from=2,to=22,by=2)
+
+#clr.center <- "darkolivegreen";
+#clr.mid <- "mediumaquamarine";
+#clr.edge <- "palegreen";
+clr.center <- "navyblue";
+clr.mid <- "steelblue";
+clr.edge <- "lightblue";
+
+windows(10,8);  # specify the plot window size so everything will look like it should.
+layout(matrix(1:9,c(3,3),byrow=TRUE));
+par(mar=c(2.5, 3.75, 1.5, 0.5), mgp=c(1.5, 0.5, 0)) 
+# mar: c(bottom, left, top, right)’ gives the number of lines of margin to be specified on the four sides of the plot. default is ‘c(5, 4, 4, 2) + 0.1’.
+# mgp: margin line (in ‘mex’ units) for the axis title, axis labels and axis line. The default is ‘c(3, 1, 0)’.
+
+for (r in 1:length(roi.ids)) {
+  for (p in 1:length(pair.ids)) {   # p <- 1; r <- 1;
+    tbl <- read.table(paste(path, pair.ids[p], "_", roi.ids[r], "_nullDists.txt", sep="")); 
+    reals <- tbl[1,];  # real accuracy
+    tbl <- tbl[2:nrow(tbl),];  # permutation accuracies
+       
+    if (r == 1) { ttl <- pair.ttls[p]; } else { ttl <- ""; }    # only put main title in the first row
+    if (p == 1) { yttl <- roi.ttls[r]; } else { yttl <- ""; }   # and y-axis title in first column
+    if (r == 3) { xttl <- "TIME (sec)"; } else { xttl <- ""; }   # and x-axis title in last row
+    #ttl <- ""; yttl <- ""; xttl <- "";
+    
+    # start with a blank plot
+    plot(x=timepoints, y=rep(0,11), col='white', ylab=yttl, xlab=xttl, main=ttl, xlim=c(2,22), ylim=c(0,1), las=1, cex.axis=1.3, cex.main=1.5, cex.lab=1.3)
+ #   for (yval in c(0.4, 0.45, 0.55, 0.6, 0.65, 0.7, 0.75)) { lines(x=c(-1,25), y=rep(yval,2), lty='dotted', col='darkgrey'); }
+    
+    # add shading to show the boundaries of the null distribution (and so the p-values)
+    for (tp in 1:10) {    # tp <- 1;
+      #bounds1 <- quantile(tbl[,tp], probs=c(0.01, 0.99));
+      #bounds2 <- quantile(tbl[,(tp+1)], probs=c(0.01, 0.99));
+      bounds1 <- c(max(tbl[,tp]), min(tbl[,tp]));
+      bounds2 <- c(max(tbl[,(tp+1)]), min(tbl[,(tp+1)]));
+      polygon(c(timepoints[tp],timepoints[tp],timepoints[tp+1],timepoints[tp+1]), 
+        c(bounds1[[1]],bounds1[[2]], bounds2[[2]],bounds2[[1]]), col=clr.edge, lty='blank')
+
+      #bounds1 <- quantile(tbl[,tp], probs=c(0.05, 0.95));
+      #bounds2 <- quantile(tbl[,(tp+1)], probs=c(0.05, 0.95));
+      bounds1 <- quantile(tbl[,tp], probs=c(0.01, 0.99));
+      bounds2 <- quantile(tbl[,(tp+1)], probs=c(0.01, 0.99));
+      polygon(c(timepoints[tp],timepoints[tp],timepoints[tp+1],timepoints[tp+1]), 
+        c(bounds1[[1]],bounds1[[2]], bounds2[[2]],bounds2[[1]]), col=clr.mid, lty='blank')
+        
+      #bounds1 <- quantile(tbl[,tp], probs=c(0.1, 0.9));
+      #bounds2 <- quantile(tbl[,(tp+1)], probs=c(0.1, 0.9));
+      bounds1 <- quantile(tbl[,tp], probs=c(0.05, 0.95));
+      bounds2 <- quantile(tbl[,(tp+1)], probs=c(0.05, 0.95));
+      polygon(c(timepoints[tp],timepoints[tp],timepoints[tp+1],timepoints[tp+1]), 
+        c(bounds1[[1]],bounds1[[2]], bounds2[[2]],bounds2[[1]]), col=clr.center, lty='blank')
+    }
+    
+    # horizontal and vertical lines
+    lines(x=c(-1,25), y=rep(0.5,2), col='darkgrey');   # horizontal line at chance
+    lines(x=rep(10,2), y=c(-0.5,1.5), col='darkgrey', lwd=2);   # vertical lines for timepoint boundaries
+    lines(x=rep(13,2), y=c(-0.5,1.5), col='darkgrey', lwd=2);
+    lines(x=rep(20,2), y=c(-0.5,1.5), col='darkgrey', lwd=2);
+
+    lines(x=seq(from=2,to=22,by=2), y=reals, lwd=3, col='gold');   # classification accuracy line
+  }
+}
+
+#############################################################################################################################################
+
+
+
+
+
+
 
 
 
